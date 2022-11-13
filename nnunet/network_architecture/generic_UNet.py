@@ -441,7 +441,8 @@ class Generic_UNet(SegmentationNetwork):
             for pi in range(len(num_pool_per_axis)):
                 map_size[pi] /= pool_op_kernel_sizes[p][pi]
             num_feat = min(num_feat * 2, max_num_features)
-            num_blocks = (conv_per_stage * 2 + 1) if p < (npool - 1) else conv_per_stage  # conv_per_stage + conv_per_stage for the convs of encode/decode and 1 for transposed conv
+            num_blocks = (conv_per_stage * 2 + 1) if p < (
+                        npool - 1) else conv_per_stage  # conv_per_stage + conv_per_stage for the convs of encode/decode and 1 for transposed conv
             tmp += num_blocks * np.prod(map_size, dtype=np.int64) * num_feat
             if deep_supervision and p < (npool - 2):
                 tmp += np.prod(map_size, dtype=np.int64) * num_classes
