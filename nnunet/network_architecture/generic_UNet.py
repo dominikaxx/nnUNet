@@ -190,7 +190,8 @@ class Generic_UNet(SegmentationNetwork):
                  conv_kernel_sizes=None,
                  upscale_logits=False, convolutional_pooling=False, convolutional_upsampling=False,
                  max_num_features=None, basic_block=ConvDropoutNormNonlin,
-                 seg_output_use_bias=False):
+                 seg_output_use_bias=False,
+                 encoder_scale=1):
         """
         basically more flexible than v1, architecture is the same
 
@@ -267,7 +268,7 @@ class Generic_UNet(SegmentationNetwork):
         self.tu = []
         self.seg_outputs = []
 
-        output_features = base_num_features
+        output_features = base_num_features * encoder_scale
         input_features = input_channels
 
         for d in range(num_pool):
@@ -324,7 +325,7 @@ class Generic_UNet(SegmentationNetwork):
 
         # now lets build the localization pathway
         for u in range(num_pool):
-            nfeatures_from_down = final_num_features
+            nfeatures_from_down = int(final_num_features / encoder_scale)
             nfeatures_from_skip = self.conv_blocks_context[
                 -(2 + u)].output_channels  # self.conv_blocks_context[-1] is bottleneck, so start with -2
             n_features_after_tu_and_concat = nfeatures_from_skip * 2
@@ -349,7 +350,7 @@ class Generic_UNet(SegmentationNetwork):
                 StackedConvLayers(n_features_after_tu_and_concat, nfeatures_from_skip, num_conv_per_stage - 1,
                                   self.conv_op, self.conv_kwargs, self.norm_op, self.norm_op_kwargs, self.dropout_op,
                                   self.dropout_op_kwargs, self.nonlin, self.nonlin_kwargs, basic_block=basic_block),
-                StackedConvLayers(nfeatures_from_skip, final_num_features, 1, self.conv_op, self.conv_kwargs,
+                StackedConvLayers(nfeatures_from_skip, int(final_num_features/encoder_scale), 1, self.conv_op, self.conv_kwargs,
                                   self.norm_op, self.norm_op_kwargs, self.dropout_op, self.dropout_op_kwargs,
                                   self.nonlin, self.nonlin_kwargs, basic_block=basic_block)
             ))
@@ -442,7 +443,7 @@ class Generic_UNet(SegmentationNetwork):
                 map_size[pi] /= pool_op_kernel_sizes[p][pi]
             num_feat = min(num_feat * 2, max_num_features)
             num_blocks = (conv_per_stage * 2 + 1) if p < (
-                        npool - 1) else conv_per_stage  # conv_per_stage + conv_per_stage for the convs of encode/decode and 1 for transposed conv
+                    npool - 1) else conv_per_stage  # conv_per_stage + conv_per_stage for the convs of encode/decode and 1 for transposed conv
             tmp += num_blocks * np.prod(map_size, dtype=np.int64) * num_feat
             if deep_supervision and p < (npool - 2):
                 tmp += np.prod(map_size, dtype=np.int64) * num_classes
