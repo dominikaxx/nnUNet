@@ -325,7 +325,10 @@ class Generic_UNet(SegmentationNetwork):
 
         # now lets build the localization pathway
         for u in range(num_pool):
-            nfeatures_from_down = int(final_num_features / encoder_scale)
+            if u == 0:
+                nfeatures_from_down = final_num_features
+            else:
+                nfeatures_from_down = int(final_num_features / encoder_scale)
             nfeatures_from_skip = self.conv_blocks_context[
                 -(2 + u)].output_channels  # self.conv_blocks_context[-1] is bottleneck, so start with -2
             n_features_after_tu_and_concat = nfeatures_from_skip * 2
