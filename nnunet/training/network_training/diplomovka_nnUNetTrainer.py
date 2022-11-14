@@ -27,7 +27,7 @@ class diplomovka_nnUNetTrainer2(nnUNetTrainerV2BraTSRegions_DA4_BN_BD):
         self.loss = DC_and_BCE_loss({}, {'batch_dice': True, 'do_bg': True, 'smooth': 0})
 
 
-class diplomovka_largeUnet(diplomovka_nnUNetTrainer2):
+class diplomovka_largeUnet_trainer(diplomovka_nnUNetTrainer2):
     def initialize_network(self):
         if self.threeD:
             conv_op = nn.Conv3d
@@ -55,7 +55,7 @@ class diplomovka_largeUnet(diplomovka_nnUNetTrainer2):
         self.network.inference_apply_nonlin = nn.Sigmoid()
 
 
-class diplomovka_axialAttention(diplomovka_nnUNetTrainer2):
+class diplomovka_axialAttention_trainer(diplomovka_nnUNetTrainer2):
     def initialize_network(self):
         if self.threeD:
             conv_op = nn.Conv3d
@@ -80,7 +80,7 @@ class diplomovka_axialAttention(diplomovka_nnUNetTrainer2):
                                             InitWeights_He(1e-2),
                                             self.net_num_pool_op_kernel_sizes, self.net_conv_kernel_sizes, False, True,
                                             True,
-                                            encoder_scale=1,
+                                            320, encoder_scale=1,
                                             axial_attention=True, heads=1, dim_heads=4, volume_shape=(128, 128, 128),
                                             no_attention=[0], axial_bn=True, sum_axial_out=True)
         if torch.cuda.is_available():

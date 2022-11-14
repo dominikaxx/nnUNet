@@ -2,6 +2,7 @@ from abc import ABC
 
 import numpy as np
 import torch
+from axial_attention import AxialPositionalEmbedding, AxialAttention
 from torch import nn
 
 from nnunet.network_architecture.generic_UNet import ConvDropoutNormNonlin, StackedConvLayers, Upsample
@@ -28,6 +29,12 @@ class AxialAttention3D(nn.Module):
             self.axial_attention += [non_lin(**non_lin_kwargs)]
         self.axial_attention = nn.Sequential(*self.axial_attention)
         self.residual_attention = residual_attention
+
+    def forward(self, x):
+        if self.residual_attention:
+            return x + self.axial_attention(x)
+        else:
+            return self.axial_attention(x)
 
     def forward(self, x):
         if self.residual_attention:
@@ -63,7 +70,7 @@ class Axial_attention_UNet(SegmentationNetwork):
                  upscale_logits=False, convolutional_pooling=False, convolutional_upsampling=False,
                  max_num_features=None, basic_block=ConvDropoutNormNonlin,
                  seg_output_use_bias=False,
-                 encoder_scale=1, axial_attention=False, heads=2, dim_heads=8, volume_shape=(128, 128, 128),
+                 encoder_scale=1, axial_attention=False, heads=2, dim_heads=8, volume_shape=(240, 240, 155),
                  no_attention=[0], axial_bn=True, sum_axial_out=True, residual_attention=False):  # extra
         """
         basically more flexible than v1, architecture is the same
@@ -71,7 +78,7 @@ class Axial_attention_UNet(SegmentationNetwork):
         This does everything you need, including world peace.
         Questions? -> f.isensee@dkfz.de
         """
-        super(Axial_UNet, self).__init__()
+        super(Axial_attention_UNet, self).__init__()
         self.convolutional_upsampling = convolutional_upsampling
         self.convolutional_pooling = convolutional_pooling
         self.upscale_logits = upscale_logits
