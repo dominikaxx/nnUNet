@@ -1,47 +1,174 @@
-import numpy as np
-import torch
-from axial_attention import AxialPositionalEmbedding, AxialAttention
-from torch import nn
+from copy import deepcopy
 
-from nnunet.network_architecture.generic_UNet import ConvDropoutNormNonlin, StackedConvLayers, Upsample
+from nnunet.network_architecture.grid_attention_layer import GridAttentionBlock3D
+from nnunet.utilities.nd_softmax import softmax_helper
+from torch import nn
+import torch
+import numpy as np
 from nnunet.network_architecture.initialization import InitWeights_He
 from nnunet.network_architecture.neural_network import SegmentationNetwork
-from nnunet.utilities.nd_softmax import softmax_helper
+import torch.nn.functional
 
 
-class AxialAttention3D(nn.Module):
-    def __init__(self, n_features, emb_shape, heads, dim_heads, non_lin, non_lin_kwargs, bn=True, sum_axial_out=True,
-                 residual_attention=False):
-        super(AxialAttention3D, self).__init__()
-        self.axial_attention = [AxialPositionalEmbedding(dim=n_features, shape=emb_shape),
-                                AxialAttention(dim=n_features,
-                                               heads=heads,
-                                               dim_heads=dim_heads,
-                                               dim_index=1,
-                                               num_dimensions=3,
-                                               sum_axial_out=sum_axial_out)]
-        if bn:
-            self.axial_attention += [nn.BatchNorm3d(n_features)]
+class ConvDropoutNormNonlin(nn.Module):
+    def __init__(self, input_channels, output_channels,
+                 conv_op=nn.Conv2d, conv_kwargs=None,
+                 norm_op=nn.BatchNorm2d, norm_op_kwargs=None,
+                 dropout_op=nn.Dropout2d, dropout_op_kwargs=None,
+                 nonlin=nn.LeakyReLU, nonlin_kwargs=None):
+        super(ConvDropoutNormNonlin, self).__init__()
+        if nonlin_kwargs is None:
+            nonlin_kwargs = {'negative_slope': 1e-2, 'inplace': True}
+        if dropout_op_kwargs is None:
+            dropout_op_kwargs = {'p': 0.5, 'inplace': True}
+        if norm_op_kwargs is None:
+            norm_op_kwargs = {'eps': 1e-5, 'affine': True, 'momentum': 0.1}
+        if conv_kwargs is None:
+            conv_kwargs = {'kernel_size': 3, 'stride': 1, 'padding': 1, 'dilation': 1, 'bias': True}
 
-        if non_lin is not None:
-            self.axial_attention += [non_lin(**non_lin_kwargs)]
-        self.axial_attention = nn.Sequential(*self.axial_attention)
-        self.residual_attention = residual_attention
+        self.nonlin_kwargs = nonlin_kwargs
+        self.nonlin = nonlin
+        self.dropout_op = dropout_op
+        self.dropout_op_kwargs = dropout_op_kwargs
+        self.norm_op_kwargs = norm_op_kwargs
+        self.conv_kwargs = conv_kwargs
+        self.conv_op = conv_op
+        self.norm_op = norm_op
+
+        self.conv = self.conv_op(input_channels, output_channels, **self.conv_kwargs)
+        if self.dropout_op is not None and self.dropout_op_kwargs['p'] is not None and self.dropout_op_kwargs[
+            'p'] > 0:
+            self.dropout = self.dropout_op(**self.dropout_op_kwargs)
+        else:
+            self.dropout = None
+        self.instnorm = self.norm_op(output_channels, **self.norm_op_kwargs)
+        self.lrelu = self.nonlin(**self.nonlin_kwargs)
 
     def forward(self, x):
-        if self.residual_attention:
-            return x + self.axial_attention(x)
+        x = self.conv(x)
+        if self.dropout is not None:
+            x = self.dropout(x)
+        return self.lrelu(self.instnorm(x))
+
+
+class ConvDropoutNonlinNorm(ConvDropoutNormNonlin):
+    def forward(self, x):
+        x = self.conv(x)
+        if self.dropout is not None:
+            x = self.dropout(x)
+        return self.instnorm(self.lrelu(x))
+
+
+class StackedConvLayers(nn.Module):
+    def __init__(self, input_feature_channels, output_feature_channels, num_convs,
+                 conv_op=nn.Conv2d, conv_kwargs=None,
+                 norm_op=nn.BatchNorm2d, norm_op_kwargs=None,
+                 dropout_op=nn.Dropout2d, dropout_op_kwargs=None,
+                 nonlin=nn.LeakyReLU, nonlin_kwargs=None, first_stride=None, basic_block=ConvDropoutNormNonlin):
+        '''
+        stacks ConvDropoutNormLReLU layers. initial_stride will only be applied to first layer in the stack. The other parameters affect all layers
+        :param input_feature_channels:
+        :param output_feature_channels:
+        :param num_convs:
+        :param dilation:
+        :param kernel_size:
+        :param padding:
+        :param dropout:
+        :param initial_stride:
+        :param conv_op:
+        :param norm_op:
+        :param dropout_op:
+        :param inplace:
+        :param neg_slope:
+        :param norm_affine:
+        :param conv_bias:
+        '''
+        self.input_channels = input_feature_channels
+        self.output_channels = output_feature_channels
+
+        if nonlin_kwargs is None:
+            nonlin_kwargs = {'negative_slope': 1e-2, 'inplace': True}
+        if dropout_op_kwargs is None:
+            dropout_op_kwargs = {'p': 0.5, 'inplace': True}
+        if norm_op_kwargs is None:
+            norm_op_kwargs = {'eps': 1e-5, 'affine': True, 'momentum': 0.1}
+        if conv_kwargs is None:
+            conv_kwargs = {'kernel_size': 3, 'stride': 1, 'padding': 1, 'dilation': 1, 'bias': True}
+
+        self.nonlin_kwargs = nonlin_kwargs
+        self.nonlin = nonlin
+        self.dropout_op = dropout_op
+        self.dropout_op_kwargs = dropout_op_kwargs
+        self.norm_op_kwargs = norm_op_kwargs
+        self.conv_kwargs = conv_kwargs
+        self.conv_op = conv_op
+        self.norm_op = norm_op
+
+        if first_stride is not None:
+            self.conv_kwargs_first_conv = deepcopy(conv_kwargs)
+            self.conv_kwargs_first_conv['stride'] = first_stride
         else:
-            return self.axial_attention(x)
+            self.conv_kwargs_first_conv = conv_kwargs
+
+        super(StackedConvLayers, self).__init__()
+        self.blocks = nn.Sequential(
+            *([basic_block(input_feature_channels, output_feature_channels, self.conv_op,
+                           self.conv_kwargs_first_conv,
+                           self.norm_op, self.norm_op_kwargs, self.dropout_op, self.dropout_op_kwargs,
+                           self.nonlin, self.nonlin_kwargs)] +
+              [basic_block(output_feature_channels, output_feature_channels, self.conv_op,
+                           self.conv_kwargs,
+                           self.norm_op, self.norm_op_kwargs, self.dropout_op, self.dropout_op_kwargs,
+                           self.nonlin, self.nonlin_kwargs) for _ in range(num_convs - 1)]))
 
     def forward(self, x):
-        if self.residual_attention:
-            return x + self.axial_attention(x)
-        else:
-            return self.axial_attention(x)
+        return self.blocks(x)
 
 
-class Axial_attention_UNet(SegmentationNetwork):
+def print_module_training_status(module):
+    if isinstance(module, nn.Conv2d) or isinstance(module, nn.Conv3d) or isinstance(module, nn.Dropout3d) or \
+            isinstance(module, nn.Dropout2d) or isinstance(module, nn.Dropout) or isinstance(module, nn.InstanceNorm3d) \
+            or isinstance(module, nn.InstanceNorm2d) or isinstance(module, nn.InstanceNorm1d) \
+            or isinstance(module, nn.BatchNorm2d) or isinstance(module, nn.BatchNorm3d) or isinstance(module,
+                                                                                                      nn.BatchNorm1d):
+        print(str(module), module.training)
+
+
+class Upsample(nn.Module):
+    def __init__(self, size=None, scale_factor=None, mode='nearest', align_corners=False):
+        super(Upsample, self).__init__()
+        self.align_corners = align_corners
+        self.mode = mode
+        self.scale_factor = scale_factor
+        self.size = size
+
+    def forward(self, x):
+        return nn.functional.interpolate(x, size=self.size, scale_factor=self.scale_factor, mode=self.mode,
+                                         align_corners=self.align_corners)
+
+
+class MultiAttentionBlock(nn.Module):
+    def __init__(self, in_size, gate_size, inter_size, nonlocal_mode, sub_sample_factor):
+        super(MultiAttentionBlock, self).__init__()
+        self.gate_block_1 = GridAttentionBlock3D(in_channels=in_size, gating_channels=gate_size,
+                                                 inter_channels=inter_size, mode=nonlocal_mode,
+                                                 sub_sample_factor= sub_sample_factor)
+        self.combine_gates = nn.Sequential(nn.Conv3d(in_size, in_size, kernel_size=1, stride=1, padding=0),
+                                           nn.BatchNorm3d(in_size),
+                                           nn.ReLU(inplace=True)
+                                           )
+
+        # initialise the blocks
+        # for m in self.children():
+        #     if m.__class__.__name__.find('GridAttentionBlock3D') != -1: continue
+        #     init_weights(m, init_type='kaiming')
+
+    def forward(self, input, gating_signal):
+        gate_1, attention_1 = self.gate_block_1(input, gating_signal)
+
+        return self.combine_gates(gate_1),
+
+class Attention_UNet(SegmentationNetwork):
     DEFAULT_BATCH_SIZE_3D = 2
     DEFAULT_PATCH_SIZE_3D = (64, 192, 160)
     SPACING_FACTOR_BETWEEN_STAGES = 2
@@ -68,15 +195,9 @@ class Axial_attention_UNet(SegmentationNetwork):
                  upscale_logits=False, convolutional_pooling=False, convolutional_upsampling=False,
                  max_num_features=None, basic_block=ConvDropoutNormNonlin,
                  seg_output_use_bias=False,
-                 encoder_scale=1, axial_attention=False, heads=2, dim_heads=8, volume_shape=(240, 240, 155),
-                 no_attention=[0], axial_bn=True, sum_axial_out=True, residual_attention=False):  # extra
-        """
-        basically more flexible than v1, architecture is the same
-        Does this look complicated? Nah bro. Functionality > usability
-        This does everything you need, including world peace.
-        Questions? -> f.isensee@dkfz.de
-        """
-        super(Axial_attention_UNet, self).__init__()
+                 encoder_scale=1):
+
+        super(Attention_UNet, self).__init__()
         self.convolutional_upsampling = convolutional_upsampling
         self.convolutional_pooling = convolutional_pooling
         self.upscale_logits = upscale_logits
@@ -88,7 +209,7 @@ class Axial_attention_UNet(SegmentationNetwork):
             norm_op_kwargs = {'eps': 1e-5, 'affine': True, 'momentum': 0.1}
 
         self.conv_kwargs = {'stride': 1, 'dilation': 1, 'bias': True}
-        self.num_pool = num_pool
+
         self.nonlin = nonlin
         self.nonlin_kwargs = nonlin_kwargs
         self.dropout_op_kwargs = dropout_op_kwargs
@@ -101,10 +222,7 @@ class Axial_attention_UNet(SegmentationNetwork):
         self.final_nonlin = final_nonlin
         self._deep_supervision = deep_supervision
         self.do_ds = deep_supervision
-        self.do_attention = axial_attention
-        self.volume_shape = np.array(volume_shape)
-        self.no_attention = no_attention  # level of the downsampling to not use attention
-        self.residual_attention = residual_attention
+        # OK
         if conv_op == nn.Conv2d:
             upsample_mode = 'bilinear'
             pool_op = nn.MaxPool2d
@@ -145,8 +263,7 @@ class Axial_attention_UNet(SegmentationNetwork):
         self.td = []
         self.tu = []
         self.seg_outputs = []
-        self.axial_attention_down = []
-        self.axial_attention_up = []
+        self.attention_gates = []
 
         output_features = base_num_features * encoder_scale
         input_features = input_channels
@@ -166,19 +283,6 @@ class Axial_attention_UNet(SegmentationNetwork):
                                                               self.norm_op_kwargs, self.dropout_op,
                                                               self.dropout_op_kwargs, self.nonlin, self.nonlin_kwargs,
                                                               first_stride, basic_block=basic_block))
-            if self.do_attention:
-                if d not in self.no_attention:
-                    emb_shape = (self.volume_shape / (2 ** d)).astype(np.int16)
-                    self.axial_attention_down.append(AxialAttention3D(n_features=output_features,
-                                                                      emb_shape=emb_shape,
-                                                                      heads=heads * 2 ** d,
-                                                                      dim_heads=dim_heads * 2 ** d,
-                                                                      non_lin=nonlin,
-                                                                      non_lin_kwargs=nonlin_kwargs,
-                                                                      bn=axial_bn,
-                                                                      sum_axial_out=sum_axial_out,
-                                                                      residual_attention=residual_attention))
-
             if not self.convolutional_pooling:
                 self.td.append(pool_op(pool_op_kernel_sizes[d]))
             input_features = output_features
@@ -192,6 +296,7 @@ class Axial_attention_UNet(SegmentationNetwork):
             first_stride = pool_op_kernel_sizes[-1]
         else:
             first_stride = None
+        # OK
 
         # the output of the last conv must match the number of features from the skip connection if we are not using
         # convolutional upsampling. If we use convolutional upsampling then the reduction in feature maps will be
@@ -215,6 +320,7 @@ class Axial_attention_UNet(SegmentationNetwork):
         if not dropout_in_localization:
             old_dropout_p = self.dropout_op_kwargs['p']
             self.dropout_op_kwargs['p'] = 0.0
+        # OK
 
         # now lets build the localization pathway
         for u in range(num_pool):
@@ -252,19 +358,20 @@ class Axial_attention_UNet(SegmentationNetwork):
                                   self.nonlin, self.nonlin_kwargs, basic_block=basic_block)
             ))
 
-            if self.do_attention:
-                d = num_pool - u - 1
-                if d not in self.no_attention:
-                    emb_shape = (self.volume_shape / (2 ** d)).astype(np.int16)
-                    self.axial_attention_up.append(AxialAttention3D(n_features=nfeatures_from_skip,
-                                                                    emb_shape=emb_shape,
-                                                                    heads=heads * 2 ** d,
-                                                                    dim_heads=dim_heads * 2 ** d,
-                                                                    non_lin=nonlin,
-                                                                    non_lin_kwargs=nonlin_kwargs,
-                                                                    bn=axial_bn,
-                                                                    sum_axial_out=sum_axial_out,
-                                                                    residual_attention=residual_attention))
+            # TODO attention
+            if u >= (num_pool - 2):
+                # nfeatures_from_skip = self.conv_blocks_context[-(1 + u)].output_channels
+                print("{} Ag expects input".format(u))
+                print("")
+                self.ag.append(
+                    MultiAttentionBlock(in_size=nfeatures_from_skip, gate_size=nfeatures_from_down,
+                                        inter_size=nfeatures_from_skip,
+                                        nonlocal_mode='concatenation', sub_sample_factor=pool_op_kernel_sizes[-(u + 1)],
+                                        norm_layer=self.norm_op
+                                        )
+                )
+        #         OK
+
         for ds in range(len(self.conv_blocks_localization)):
             self.seg_outputs.append(conv_op(self.conv_blocks_localization[ds][-1].output_channels, num_classes,
                                             1, 1, 0, 1, 1, seg_output_use_bias))
@@ -281,19 +388,17 @@ class Axial_attention_UNet(SegmentationNetwork):
         if not dropout_in_localization:
             self.dropout_op_kwargs['p'] = old_dropout_p
 
+        # OK
+
         # register all modules properly
         self.conv_blocks_localization = nn.ModuleList(self.conv_blocks_localization)
         self.conv_blocks_context = nn.ModuleList(self.conv_blocks_context)
         self.td = nn.ModuleList(self.td)
         self.tu = nn.ModuleList(self.tu)
         self.seg_outputs = nn.ModuleList(self.seg_outputs)
+        self.attention_gates = nn.ModuleList(self.attention_gates)
         if self.upscale_logits:
-            self.upscale_logits_ops = nn.ModuleList(
-                self.upscale_logits_ops)  # lambda x:x is not a Module so we need to distinguish here
-
-        if self.do_attention:
-            self.axial_attention_down = nn.ModuleList(self.axial_attention_down)
-            self.axial_attention_up = nn.ModuleList(self.axial_attention_up)
+            self.upscale_logits_ops = nn.ModuleList(self.upscale_logits_ops)  # lambda x:x is not a Module so we need to distinguish here
 
         if self.weightInitializer is not None:
             self.apply(self.weightInitializer)
@@ -304,9 +409,6 @@ class Axial_attention_UNet(SegmentationNetwork):
         seg_outputs = []
         for d in range(len(self.conv_blocks_context) - 1):
             x = self.conv_blocks_context[d](x)
-            if self.do_attention and d not in self.no_attention:
-                x = self.axial_attention_down[d - len(self.no_attention)](x)
-
             skips.append(x)
             if not self.convolutional_pooling:
                 x = self.td[d](x)
@@ -314,12 +416,18 @@ class Axial_attention_UNet(SegmentationNetwork):
         x = self.conv_blocks_context[-1](x)
 
         for u in range(len(self.tu)):
-            x = self.tu[u](x)
-            if self.do_attention and (self.num_pool - u - 1) not in self.no_attention:
-                x = self.axial_attention_up[u](x)
-            x = torch.cat((x, skips[-(u + 1)]), dim=1)
-            x = self.conv_blocks_localization[u](x)
-            seg_outputs.append(self.final_nonlin(self.seg_outputs[u](x)))
+            # TODO  Attention Mechanism /  Upscaling Part (Decoder)
+            if u >= (len(self.tu)-2):
+                gate, at = self.ag[u-(len(self.tu)-2)](skips[-(u + 1)], x)
+                x = self.tu[u](x)
+                x = torch.cat((x, gate), dim=1)
+                x = self.conv_blocks_localization[u](x)
+                seg_outputs.append(self.final_nonlin(self.seg_outputs[u](x)))
+            else:
+                x = self.tu[u](x)
+                x = torch.cat((x, skips[-(u + 1)]), dim=1)
+                x = self.conv_blocks_localization[u](x)
+                seg_outputs.append(self.final_nonlin(self.seg_outputs[u](x)))
 
         if self._deep_supervision and self.do_ds:
             return tuple([seg_outputs[-1]] + [i(j) for i, j in
