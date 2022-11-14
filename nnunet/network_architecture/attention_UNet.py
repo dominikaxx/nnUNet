@@ -283,7 +283,11 @@ class Attention_UNet(SegmentationNetwork):
         for u in range(len(self.tu)):
             # TODO  Attention Mechanism /  Upscaling Part (Decoder)
             if u >= (len(self.tu) - 2):
+                print("x " + str(x))
+                print("u " + str(u))
                 gate, at = self.attention_gates[u - (len(self.tu) - 2)](skips[-(u + 1)], x)
+                print("gate " + str(gate))
+                print("at " + str(at))
                 x = self.tu[u](x)
                 x = torch.cat((x, gate), dim=1)
                 x = self.conv_blocks_localization[u](x)
