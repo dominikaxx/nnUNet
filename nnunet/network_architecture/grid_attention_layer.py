@@ -5,7 +5,7 @@ from torch.nn import functional as F
 
 class _GridAttentionBlockND(nn.Module):
     def __init__(self, in_channels, gating_channels, inter_channels=None, dimension=3, mode='concatenation',
-                 sub_sample_factor=(2, 2, 2)):
+                 sub_sample_factor=(2, 2, 2), norm_layer=nn.InstanceNorm3d):
         super(_GridAttentionBlockND, self).__init__()
 
         assert dimension in [2, 3]
@@ -36,7 +36,7 @@ class _GridAttentionBlockND(nn.Module):
 
         if dimension == 3:
             conv_nd = nn.Conv3d
-            bn = nn.BatchNorm3d
+            bn = norm_layer
             self.upsample_mode = 'trilinear'
         elif dimension == 2:
             conv_nd = nn.Conv2d
@@ -164,10 +164,11 @@ class _GridAttentionBlockND(nn.Module):
 
 class GridAttentionBlock3D(_GridAttentionBlockND):
     def __init__(self, in_channels, gating_channels, inter_channels=None, mode='concatenation',
-                 sub_sample_factor=(2, 2, 2)):
+                 sub_sample_factor=(2, 2, 2), norm_layer=nn.InstanceNorm3d):
         super(GridAttentionBlock3D, self).__init__(in_channels,
                                                    inter_channels=inter_channels,
                                                    gating_channels=gating_channels,
                                                    dimension=3, mode=mode,
                                                    sub_sample_factor=sub_sample_factor,
+                                                   norm_layer=norm_layer
                                                    )

@@ -10,11 +10,12 @@ import torch.nn.functional
 
 
 class MultiAttentionBlock(nn.Module):
-    def __init__(self, in_size, gate_size, inter_size, nonlocal_mode, sub_sample_factor):
+    def __init__(self, in_size, gate_size, inter_size, nonlocal_mode, sub_sample_factor, norm_layer=nn.InstanceNorm3d):
         super(MultiAttentionBlock, self).__init__()
         self.gate_block_1 = GridAttentionBlock3D(in_channels=in_size, gating_channels=gate_size,
                                                  inter_channels=inter_size, mode=nonlocal_mode,
-                                                 sub_sample_factor=sub_sample_factor)
+                                                 sub_sample_factor=sub_sample_factor,
+                                                 norm_layer=norm_layer)
         self.combine_gates = nn.Sequential(nn.Conv3d(in_size, in_size, kernel_size=1, stride=1, padding=0),
                                            nn.BatchNorm3d(in_size),
                                            nn.ReLU(inplace=True)
@@ -229,7 +230,8 @@ class Attention_UNet(SegmentationNetwork):
                 self.attention_gates.append(
                     MultiAttentionBlock(in_size=nfeatures_from_skip, gate_size=nfeatures_from_down,
                                         inter_size=nfeatures_from_skip,
-                                        nonlocal_mode='concatenation', sub_sample_factor=pool_op_kernel_sizes[-(u + 1)]
+                                        nonlocal_mode='concatenation', sub_sample_factor=pool_op_kernel_sizes[-(u + 1)],
+                                        norm_layer=self.norm_op
                                         )
                 )
         #         OK
