@@ -238,7 +238,7 @@ class Attention_UNet(SegmentationNetwork):
 
         for ds in range(len(self.conv_blocks_localization)):
             self.seg_outputs.append(conv_op(self.conv_blocks_localization[ds][-1].output_channels, num_classes,
-                                            1, 1, 0, 1, 1, seg_output_use_bias))
+                                            1, 1, 0, 1, 1, False))
 
         self.upscale_logits_ops = []
         cum_upsample = np.cumprod(np.vstack(pool_op_kernel_sizes), axis=0)[::-1]
@@ -283,12 +283,12 @@ class Attention_UNet(SegmentationNetwork):
         for u in range(len(self.tu)):
             # TODO  Attention Mechanism /  Upscaling Part (Decoder)
             if u >= (len(self.tu) - 2):
-                print("x " + str(x))
-                print("u " + str(u))
-                gate, at = self.attention_gates[u - (len(self.tu) - 2)](skips[-(u + 1)], x)
-                print("gate " + str(gate))
-                print("at " + str(at))
+                gate = self.attention_gates[u - (len(self.tu) - 2)](skips[-(u + 1)], x)[0]
+                # print("gate.shape ", str(gate.shape))
                 x = self.tu[u](x)
+                # print("x shape ", str(x.shape))
+                #  Concatenates the given sequence of tensors in the given dimension
+                #  All tensors must either have the same shape (except in the concatenating dimension) or be empty.
                 x = torch.cat((x, gate), dim=1)
                 x = self.conv_blocks_localization[u](x)
                 seg_outputs.append(self.final_nonlin(self.seg_outputs[u](x)))

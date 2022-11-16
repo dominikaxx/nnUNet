@@ -1,12 +1,14 @@
-﻿from nnunet.network_architecture.attention_UNet import Attention_UNet
+﻿import torch
+from torch import nn
+
+from nnunet.network_architecture.attention_UNet import Attention_UNet
 from nnunet.network_architecture.axial_attention_UNet import Axial_attention_UNet
 from nnunet.network_architecture.generic_UNet import Generic_UNet
 from nnunet.network_architecture.initialization import InitWeights_He
 from nnunet.training.loss_functions.dice_loss import DC_and_BCE_loss
 from nnunet.training.network_training.competitions_with_custom_Trainers.BraTS2020.nnUNetTrainerV2BraTSRegions_moreDA import \
-    nnUNetTrainerV2BraTSRegions_DA4_BN, nnUNetTrainerV2BraTSRegions_DA4_BN_BD, nnUNetTrainerV2BraTSRegions_DA3_BN
-from torch import nn
-import torch
+    nnUNetTrainerV2BraTSRegions_DA4_BN_BD, nnUNetTrainerV2BraTSRegions_DA3_BN
+from nnunet.utilities.nd_softmax import softmax_helper
 
 
 class diplomovka_nnUNetTrainer(nnUNetTrainerV2BraTSRegions_DA3_BN):
@@ -88,6 +90,8 @@ class diplomovka_axialAttention_trainer(diplomovka_nnUNetTrainer2):
             self.network.cuda()
         self.network.inference_apply_nonlin = nn.Sigmoid()
 
+        print(self.network)
+
 
 class diplomovka_attentionUnet_trainer(diplomovka_nnUNetTrainer2):
     def initialize_network(self):
@@ -111,7 +115,10 @@ class diplomovka_attentionUnet_trainer(diplomovka_nnUNetTrainer2):
                                       dropout_op_kwargs,
                                       net_nonlin, net_nonlin_kwargs, True, False, lambda x: x, InitWeights_He(1e-2),
                                       self.net_num_pool_op_kernel_sizes, self.net_conv_kernel_sizes, False, True, True,
-                                      encoder_scale=2)
+                                      encoder_scale=1)
         if torch.cuda.is_available():
             self.network.cuda()
-        self.network.inference_apply_nonlin = nn.Sigmoid()
+        self.network.inference_apply_nonlin = softmax_helper
+
+
+        # self.network.inference_apply_nonlin = nn.Sigmoid()
