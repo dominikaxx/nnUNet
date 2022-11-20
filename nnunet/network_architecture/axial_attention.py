@@ -7,6 +7,7 @@ from axial_attention import AxialAttention, AxialPositionalEmbedding
 from torch import nn
 
 from nnunet.network_architecture.initialization import InitWeights_He
+from nnunet.network_architecture.neural_network import SegmentationNetwork
 from nnunet.utilities.nd_softmax import softmax_helper
 
 
@@ -154,7 +155,7 @@ class Upsample(nn.Module):
                                          align_corners=self.align_corners)
 
 
-class AxialAttention_UNet:
+class AxialAttention_UNet(SegmentationNetwork):
     DEFAULT_BATCH_SIZE_3D = 2
     DEFAULT_PATCH_SIZE_3D = (64, 192, 160)
     SPACING_FACTOR_BETWEEN_STAGES = 2
@@ -363,7 +364,10 @@ class AxialAttention_UNet:
             if self.do_attention:
                 if u not in self.no_attention:
                     d = num_pool - u - 1
+                    print("d ", d)
+                    print("volume_shape ", volume_shape)
                     emb_shape = (self.volume_shape / (2 ** d)).astype(np.int16)
+                    print("emb shape ", emb_shape)
                     self.axial_embedding.append(AxialPositionalEmbedding(dim=nfeatures_from_skip, shape=emb_shape))
                     self.axial_attention.append(AxialAttention(dim=nfeatures_from_skip,
                                                                dim_index=1,
@@ -421,6 +425,8 @@ class AxialAttention_UNet:
             x = self.tu[u](x)
             if self.do_attention and u not in self.no_attention:
                 x = self.axial_attention[u](self.axial_embedding[u](x)) + x
+                print("x ", x)
+                print("skips[-(u + 1)] ", skips[-(u + 1)])
             x = torch.cat((x, skips[-(u + 1)]), dim=1)
             x = self.conv_blocks_localization[u](x)
             seg_outputs.append(self.final_nonlin(self.seg_outputs[u](x)))

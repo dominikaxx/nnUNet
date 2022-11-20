@@ -81,9 +81,9 @@ class diplomovka_axialAttention_trainer(diplomovka_nnUNetTrainer2):
                                     net_nonlin, net_nonlin_kwargs, True, False, lambda x: x, InitWeights_He(1e-2),
                                     self.net_num_pool_op_kernel_sizes, self.net_conv_kernel_sizes, False, True, True,
                                     320, encoder_scale=1,
-                                    axial_attention=True, heads=2, dim_heads=8, volume_shape=(128, 128, 128),
+                                    axial_attention=True, heads=2, dim_heads=8, volume_shape=(128, 160, 112),
                                     no_attention=[4])
-        print(self.network)
+        # print(self.network)
         if torch.cuda.is_available():
             self.network.cuda()
         self.network.inference_apply_nonlin = nn.Sigmoid()
