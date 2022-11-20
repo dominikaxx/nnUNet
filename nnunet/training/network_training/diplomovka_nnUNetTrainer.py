@@ -1,6 +1,7 @@
 ﻿import torch
 from torch import nn
 
+from nnunet.network_architecture.My_UNet import build_unet
 from nnunet.network_architecture.attention_UNet import Attention_UNet
 from nnunet.network_architecture.axial_attention import AxialAttention_UNet
 from nnunet.network_architecture.axial_attention_UNet import Axial_attention_UNet
@@ -118,3 +119,14 @@ class diplomovka_attentionUnet_trainer(diplomovka_nnUNetTrainer2):
 
 
         # self.network.inference_apply_nonlin = nn.Sigmoid()
+
+class diplomovka_pokus(diplomovka_nnUNetTrainer2):
+    def initialize_network(self):
+        self.network = build_unet()
+
+        # print(self.network)
+        if torch.cuda.is_available():
+            self.network.cuda()
+        self.network.inference_apply_nonlin = nn.Sigmoid()
+
+
