@@ -2,6 +2,7 @@
 from torch import nn
 
 from nnunet.network_architecture.attention_UNet import Attention_UNet
+from nnunet.network_architecture.axial_attention import AxialAttention_UNet
 from nnunet.network_architecture.axial_attention_UNet import Axial_attention_UNet
 from nnunet.network_architecture.generic_UNet import Generic_UNet
 from nnunet.network_architecture.initialization import InitWeights_He
@@ -26,7 +27,6 @@ class diplomovka_nnUNetTrainer2(nnUNetTrainerV2BraTSRegions_DA4_BN_BD):
         super().__init__(plans_file, fold, output_folder, dataset_directory, batch_dice, stage, unpack_data,
                          deterministic, fp16)
         self.max_num_epochs = 100
-        self.batch_size = 1
         self.loss = DC_and_BCE_loss({}, {'batch_dice': True, 'do_bg': True, 'smooth': 0})
 
 
@@ -74,23 +74,19 @@ class diplomovka_axialAttention_trainer(diplomovka_nnUNetTrainer2):
         dropout_op_kwargs = {'p': 0, 'inplace': True}
         net_nonlin = nn.LeakyReLU
         net_nonlin_kwargs = {'negative_slope': 1e-2, 'inplace': True}
-
-        self.network = Axial_attention_UNet(self.num_input_channels, self.base_num_features, self.num_classes,
-                                            len(self.net_num_pool_op_kernel_sizes),
-                                            self.conv_per_stage, 2, conv_op, norm_op, norm_op_kwargs, dropout_op,
-                                            dropout_op_kwargs,
-                                            net_nonlin, net_nonlin_kwargs, True, False, lambda x: x,
-                                            InitWeights_He(1e-2),
-                                            self.net_num_pool_op_kernel_sizes, self.net_conv_kernel_sizes, False, True,
-                                            True,
-                                            320, encoder_scale=1,
-                                            axial_attention=True, heads=1, dim_heads=4, volume_shape=(128, 128, 128),
-                                            no_attention=[0], axial_bn=True, sum_axial_out=True)
+        self.network = AxialAttention_UNet(self.num_input_channels, self.base_num_features, self.num_classes,
+                                    len(self.net_num_pool_op_kernel_sizes),
+                                    self.conv_per_stage, 2, conv_op, norm_op, norm_op_kwargs, dropout_op,
+                                    dropout_op_kwargs,
+                                    net_nonlin, net_nonlin_kwargs, True, False, lambda x: x, InitWeights_He(1e-2),
+                                    self.net_num_pool_op_kernel_sizes, self.net_conv_kernel_sizes, False, True, True,
+                                    320, encoder_scale=1,
+                                    axial_attention=True, heads=2, dim_heads=8, volume_shape=(128, 128, 128),
+                                    no_attention=[4])
+        print(self.network)
         if torch.cuda.is_available():
             self.network.cuda()
         self.network.inference_apply_nonlin = nn.Sigmoid()
-
-        print(self.network)
 
 
 class diplomovka_attentionUnet_trainer(diplomovka_nnUNetTrainer2):
