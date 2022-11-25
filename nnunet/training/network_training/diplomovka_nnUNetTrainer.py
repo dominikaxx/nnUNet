@@ -32,6 +32,7 @@ class diplomovka_nnUNetTrainer2(nnUNetTrainerV2BraTSRegions_DA4_BN_BD):
 
 
 class diplomovka_largeUnet_trainer(diplomovka_nnUNetTrainer2):
+    # torch.cuda.empty_cache()
     def initialize_network(self):
         if self.threeD:
             conv_op = nn.Conv3d
@@ -124,7 +125,7 @@ class diplomovka_pokus(diplomovka_nnUNetTrainer2):
     def initialize_network(self):
         self.network = build_unet()
 
-        # print(self.network)
+        print(self.network)
         if torch.cuda.is_available():
             self.network.cuda()
         self.network.inference_apply_nonlin = nn.Sigmoid()

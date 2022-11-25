@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 
+from nnunet.network_architecture.neural_network import SegmentationNetwork
+
 
 # https://medium.com/analytics-vidhya/unet-implementation-in-pytorch-idiot-developer-da40d955f201
 class conv_block(nn.Module):
@@ -47,9 +49,11 @@ class decoder_block(nn.Module):
         return x
 
 
-class build_unet(nn.Module):
-    def __init__(self):
+class build_unet(SegmentationNetwork):
+    def __init__(self, deep_supervision=False):
         super().__init__()
+        self._deep_supervision = deep_supervision
+        self.do_ds = deep_supervision
 
         """ Encoder """
         self.e1 = encoder_block(4, 32)
@@ -62,10 +66,9 @@ class build_unet(nn.Module):
 
         """ Decoder """
         self.d1 = decoder_block(320, 256)
-        self.d3 = decoder_block(256, 128)
-        self.d4 = decoder_block(128, 64)
+        self.d2 = decoder_block(256, 128)
+        self.d3 = decoder_block(128, 64)
         self.d4 = decoder_block(64, 32)
-
 
         """ Classifier """
         self.outputs = nn.Conv3d(32, 1, kernel_size=1, padding=0)
@@ -90,5 +93,3 @@ class build_unet(nn.Module):
         outputs = self.outputs(d4)
 
         return outputs
-
-
