@@ -165,7 +165,7 @@ class Upsample(nn.Module):
 
 
 class Generic_UNet(SegmentationNetwork):
-    DEFAULT_BATCH_SIZE_3D = 1
+    DEFAULT_BATCH_SIZE_3D = 2
     DEFAULT_PATCH_SIZE_3D = (64, 192, 160)
     SPACING_FACTOR_BETWEEN_STAGES = 2
     BASE_NUM_FEATURES_3D = 30
