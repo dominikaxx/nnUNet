@@ -54,7 +54,8 @@ class diplomovka_largeUnet_trainer(diplomovka_nnUNetTrainer2):
                                     self.conv_per_stage, 2, conv_op, norm_op, norm_op_kwargs, dropout_op,
                                     dropout_op_kwargs,
                                     net_nonlin, net_nonlin_kwargs, True, False, lambda x: x, InitWeights_He(1e-2),
-                                    self.net_num_pool_op_kernel_sizes, self.net_conv_kernel_sizes, False, True, True, 512,
+                                    self.net_num_pool_op_kernel_sizes, self.net_conv_kernel_sizes, False, True, True,
+                                    512,
                                     encoder_scale=2)
         if torch.cuda.is_available():
             self.network.cuda()
@@ -86,8 +87,8 @@ class diplomovka_axialAttention_trainer(diplomovka_nnUNetTrainer2):
                                            self.net_num_pool_op_kernel_sizes, self.net_conv_kernel_sizes, False, True,
                                            True,
                                            320, encoder_scale=1,
-                                           axial_attention=True, heads=2, dim_heads=8, volume_shape=(128, 160, 112),
-                                           no_attention=[4])
+                                           axial_attention=True, heads=1, dim_heads=4, volume_shape=(128, 128, 128),
+                                           no_attention=[0])
         # print(self.network)
         if torch.cuda.is_available():
             self.network.cuda()
@@ -143,4 +144,3 @@ class diplomovka_lowResTrainer(nnUNetTrainerV2):
         self.initial_lr = 1e-2
         self.deep_supervision_scales = None
         self.ds_loss_weights = None
-

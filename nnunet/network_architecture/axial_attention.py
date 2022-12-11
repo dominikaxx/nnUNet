@@ -366,7 +366,8 @@ class AxialAttention_UNet(SegmentationNetwork):
                     d = num_pool - u - 1
                     print("d ", d)
                     print("volume_shape ", volume_shape)
-                    emb_shape = (self.volume_shape / (2 ** d)).astype(np.int16)
+                    emb_shape = (self.volume_shape / (2 ** d) / 2).astype(np.int16)
+                    # emb_shape = np.int16(512)
                     print("emb shape ", emb_shape)
                     self.axial_embedding.append(AxialPositionalEmbedding(dim=nfeatures_from_skip, shape=emb_shape))
                     self.axial_attention.append(AxialAttention(dim=nfeatures_from_skip,
@@ -411,22 +412,27 @@ class AxialAttention_UNet(SegmentationNetwork):
             # self.apply(print_module_training_status)
 
     def forward(self, x):
+        # print('self.conv_blocks_context', len(self.conv_blocks_context), self.conv_blocks_context)
+        # print('self.tu', len(self.tu), self.tu)
         skips = []
         seg_outputs = []
         for d in range(len(self.conv_blocks_context) - 1):
             x = self.conv_blocks_context[d](x)
+            print('feature map in', x.shape)
             skips.append(x)
             if not self.convolutional_pooling:
                 x = self.td[d](x)
 
         x = self.conv_blocks_context[-1](x)
+        print('feature map', x.shape)
 
         for u in range(len(self.tu)):
             x = self.tu[u](x)
+            print("xxxxx ")
             if self.do_attention and u not in self.no_attention:
-                x = self.axial_attention[u](self.axial_embedding[u](x)) + x
-                print("x ", x)
-                print("skips[-(u + 1)] ", skips[-(u + 1)])
+                # x = self.axial_attention[u](self.axial_embedding[u](x))+x
+                x = self.axial_attention[u](x)
+                # print("skips[-(u + 1)] ", skips[-(u + 1)])
             x = torch.cat((x, skips[-(u + 1)]), dim=1)
             x = self.conv_blocks_localization[u](x)
             seg_outputs.append(self.final_nonlin(self.seg_outputs[u](x)))
