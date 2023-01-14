@@ -4,14 +4,12 @@ from torch import nn
 from nnunet.network_architecture.My_UNet import build_unet
 from nnunet.network_architecture.attention_UNet import Attention_UNet
 from nnunet.network_architecture.axial_attention import AxialAttention_UNet
-from nnunet.network_architecture.axial_attention_UNet import Axial_attention_UNet
 from nnunet.network_architecture.generic_UNet import Generic_UNet
 from nnunet.network_architecture.initialization import InitWeights_He
 from nnunet.training.loss_functions.dice_loss import DC_and_BCE_loss
 from nnunet.training.network_training.competitions_with_custom_Trainers.BraTS2020.nnUNetTrainerV2BraTSRegions_moreDA import \
     nnUNetTrainerV2BraTSRegions_DA4_BN_BD, nnUNetTrainerV2BraTSRegions_DA3_BN
 from nnunet.training.network_training.nnUNetTrainerV2 import nnUNetTrainerV2
-from nnunet.utilities.nd_softmax import softmax_helper
 
 
 class diplomovka_nnUNetTrainer(nnUNetTrainerV2BraTSRegions_DA3_BN):
@@ -19,7 +17,7 @@ class diplomovka_nnUNetTrainer(nnUNetTrainerV2BraTSRegions_DA3_BN):
                  unpack_data=True, deterministic=True, fp16=False):
         super().__init__(plans_file, fold, output_folder, dataset_directory, batch_dice, stage, unpack_data,
                          deterministic, fp16)
-        self.max_num_epochs = 100
+        self.max_num_epochs = 1
         self.loss = DC_and_BCE_loss({}, {'batch_dice': True, 'do_bg': True, 'smooth': 0})
 
 
@@ -67,12 +65,12 @@ class diplomovka_axialAttention_trainer(diplomovka_nnUNetTrainer2):
         if self.threeD:
             conv_op = nn.Conv3d
             dropout_op = nn.Dropout3d
-            norm_op = nn.BatchNorm3d
+            norm_op = nn.InstanceNorm3d
 
         else:
             conv_op = nn.Conv2d
             dropout_op = nn.Dropout2d
-            norm_op = nn.BatchNorm2d
+            norm_op = nn.InstanceNorm2d
 
         norm_op_kwargs = {'eps': 1e-5, 'affine': True}
         dropout_op_kwargs = {'p': 0, 'inplace': True}
@@ -120,9 +118,7 @@ class diplomovka_attentionUnet_trainer(diplomovka_nnUNetTrainer2):
                                       encoder_scale=1)
         if torch.cuda.is_available():
             self.network.cuda()
-        self.network.inference_apply_nonlin = softmax_helper
-
-        # self.network.inference_apply_nonlin = nn.Sigmoid()
+        self.network.inference_apply_nonlin = nn.Sigmoid()
 
 
 class diplomovka_pokus(diplomovka_nnUNetTrainer2):

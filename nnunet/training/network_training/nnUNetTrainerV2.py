@@ -202,7 +202,8 @@ class nnUNetTrainerV2(nnUNetTrainer):
                                                          use_sliding_window: bool = True, step_size: float = 0.5,
                                                          use_gaussian: bool = True, pad_border_mode: str = 'constant',
                                                          pad_kwargs: dict = None, all_in_gpu: bool = False,
-                                                         verbose: bool = True, mixed_precision=True) -> Tuple[np.ndarray, np.ndarray]:
+                                                         verbose: bool = True, mixed_precision=True) -> Tuple[
+        np.ndarray, np.ndarray]:
         """
         We need to wrap this because we need to enforce self.network.do_ds = False for prediction
         """
@@ -272,16 +273,6 @@ class nnUNetTrainerV2(nnUNetTrainer):
         return l.detach().cpu().numpy()
 
     def do_split(self):
-        """
-        The default split is a 5 fold CV on all available training cases. nnU-Net will create a split (it is seeded,
-        so always the same) and save it as splits_final.pkl file in the preprocessed data directory.
-        Sometimes you may want to create your own split for various reasons. For this you will need to create your own
-        splits_final.pkl file. If this file is present, nnU-Net is going to use it and whatever splits are defined in
-        it. You can create as many splits in this file as you want. Note that if you define only 4 splits (fold 0-3)
-        and then set fold=4 when training (that would be the fifth split), nnU-Net will print a warning and proceed to
-        use a random 80:20 data split.
-        :return:
-        """
         if self.fold == "all":
             # if fold==all then we use all images for training and validation
             tr_keys = val_keys = list(self.dataset.keys())
@@ -293,10 +284,16 @@ class nnUNetTrainerV2(nnUNetTrainer):
                 self.print_to_log_file("Creating new 5-fold cross-validation split...")
                 splits = []
                 all_keys_sorted = np.sort(list(self.dataset.keys()))
+                keys_without_augmentation = [key for key in all_keys_sorted if 'CarveMix' not in key]
+                print("keys_without_augmentation: ", int(len(keys_without_augmentation)))
                 kfold = KFold(n_splits=5, shuffle=True, random_state=12345)
-                for i, (train_idx, test_idx) in enumerate(kfold.split(all_keys_sorted)):
-                    train_keys = np.array(all_keys_sorted)[train_idx]
-                    test_keys = np.array(all_keys_sorted)[test_idx]
+                for i, (train_idx, test_idx) in enumerate(kfold.split(keys_without_augmentation)):
+                    # TO DO PRIPNUIT CARVEMIX K TENOVACIM
+                    # train_keys = np.array(all_keys_sorted)[train_idx]
+                    test_keys = np.array(keys_without_augmentation)[test_idx]
+                    train_keys = list(set(all_keys_sorted) - set(test_keys))
+                    print("train_keys : ", int(len(train_keys)))
+                    print("test_keys: ", int(len(test_keys)))
                     splits.append(OrderedDict())
                     splits[-1]['train'] = train_keys
                     splits[-1]['val'] = test_keys
@@ -326,6 +323,16 @@ class nnUNetTrainerV2(nnUNetTrainer):
                 val_keys = [keys[i] for i in idx_val]
                 self.print_to_log_file("This random 80:20 split has %d training and %d validation cases."
                                        % (len(tr_keys), len(val_keys)))
+        """
+        The default split is a 5 fold CV on all available training cases. nnU-Net will create a split (it is seeded,
+        so always the same) and save it as splits_final.pkl file in the preprocessed data directory.
+        Sometimes you may want to create your own split for various reasons. For this you will need to create your own
+        splits_final.pkl file. If this file is present, nnU-Net is going to use it and whatever splits are defined in
+        it. You can create as many splits in this file as you want. Note that if you define only 4 splits (fold 0-3)
+        and then set fold=4 when training (that would be the fifth split), nnU-Net will print a warning and proceed to
+        use a random 80:20 data split.
+        :return:
+        """
 
         tr_keys.sort()
         val_keys.sort()

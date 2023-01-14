@@ -55,10 +55,10 @@ def my_evaluate_folder(folder, gt_folder):
 
 
 if __name__ == "__main__":
-    task_name = "Task500_Diplomovka_CarveMix"
+    task_name = "Task600_Diplomovka_CarveMix"
     downloaded_data_dir = "/home/grafika/Desktop/train/"
     downloaded_data_dir_test = "/home/grafika/Desktop/test/"
-    result_dir = "/home/grafika/Desktop/Task500_Diplomovka_CarveMix/"
+    result_dir = "/home/grafika/Desktop/Task600_Diplomovka_CarveMix/"
 
     target_base = join(nnUNet_raw_data, task_name)
     target_imagesTr = join(target_base, "imagesTr")
@@ -150,6 +150,6 @@ if __name__ == "__main__":
 
             copy_BraTS_segmentation_and_convert_labels(seg, join(target_labelsTs, patient_name + ".nii.gz"))
 
-    # my_evaluate_folder('/home/grafika/Desktop/prediction_2d_unet', '/home/grafika/Pictures/nnUNet_raw_data_base/nnUNet_raw_data/Task500_Diplomovka/labelsTs')
+    # my_evaluate_folder('/home/grafika/Desktop/prediction_2d_unet', '/home/grafika/Pictures/nnUNet_raw_data_base/nnUNet_raw_data/Task600_Diplomovka/labelsTs')
 
     # my_rank_then_aggregate_on_validation_result

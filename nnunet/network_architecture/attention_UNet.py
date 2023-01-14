@@ -62,6 +62,7 @@ class Attention_UNet(SegmentationNetwork):
                  encoder_scale=1):
 
         super(Attention_UNet, self).__init__()
+        self.seg_output_use_bias = seg_output_use_bias
         self.convolutional_upsampling = convolutional_upsampling
         self.convolutional_pooling = convolutional_pooling
         self.upscale_logits = upscale_logits

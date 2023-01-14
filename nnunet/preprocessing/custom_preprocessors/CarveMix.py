@@ -189,6 +189,7 @@ if __name__ == '__main__':
     print('all_set_size: ', num)
     Cases.sort()
     start = 1
+    # TODO validacny set tu nie je asi potrebne oddelovat
     val_num = int(num * 0.2)
     random.seed(985)
     val_id = random.sample(range(1, num - 1), val_num)
@@ -209,13 +210,13 @@ if __name__ == '__main__':
     with open(opt.mixid_csv_path, 'w') as f:
         f.write('id,mixid1,mixid2,lam\n')
 
-    jsonik = open('/home/grafika/Pictures/nnUNet_raw_data_base/nnUNet_raw_data/Task500_Diplomovka_CarveMix/dataset.json', "r")
+    jsonik = open('/home/grafika/Pictures/nnUNet_raw_data_base/nnUNet_raw_data/Task600_Diplomovka_CarveMix/dataset.json', "r")
     data = json.load(jsonik)
     for d in data['training']:
         print(d)
     f.close()
 
-    jsonik = open('/home/grafika/Pictures/nnUNet_raw_data_base/nnUNet_raw_data/Task500_Diplomovka_CarveMix/dataset.json', "w")
+    jsonik = open('/home/grafika/Pictures/nnUNet_raw_data_base/nnUNet_raw_data/Task600_Diplomovka_CarveMix/dataset.json', "w")
 
     """
     Start generating CarveMix samples
@@ -243,9 +244,6 @@ if __name__ == '__main__':
                             os.path.join(opt.imagesTr_path, prefix + '_CarveMix_' + s + '_000%s.nii.gz' % str(j)))
         sitk.WriteImage(new_label, os.path.join(opt.labelsTr_path, prefix + '_CarveMix_' + s + '.nii.gz'))
 
-# TODO ADD TO JSONIK
-#         for d in jsonik['training']:
-#             print(d)
         newObject = {'image': "./imagesTr/" + prefix + '_CarveMix_' + s + '.nii.gz',
                      "label": "./labelsTr/" + prefix + '_CarveMix_' + s + '.nii.gz'}
         data['training'].append(newObject)
