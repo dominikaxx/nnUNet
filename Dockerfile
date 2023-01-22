@@ -10,9 +10,9 @@ FROM nvcr.io/nvidia/pytorch:20.11-py3
 RUN git clone -b DP --single-branch https://github.com/dominikaxx/nnUNet.git
 WORKDIR /workspace/nnUNet
 RUN pip install -e .
-COPY trained_models trained_models/
-ENV RESULTS_FOLDER=/workspace/nnUNet/trained_models/
+COPY nnUNet_trained_models nnUNet_trained_models/
 
+ENV RESULTS_FOLDER=/workspace/nnUNet/nnUNet_trained_models/
 
 # Installing additional libraries
 WORKDIR /workspace/

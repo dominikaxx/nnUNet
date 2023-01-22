@@ -12,7 +12,7 @@ def main():
     tmp_input_folder = '/tmp_input'
     tmp_output_folder = '/tmp_output'
     maybe_mkdir_p(tmp_input_folder)
-    os.system("export RESULTS_FOLDER=/usr/local/bin/trained_models/")
+    os.system("export RESULTS_FOLDER=/workspace/nnUNet/nnUNet_trained_models/")
     # convert raw data to nnunet format
     contrast_to_number = {'t1': '0000', 't1ce': '0001', 't2': '0002', 'flair': '0003'}
     for p in subfiles(input_folder, join=False):
@@ -36,5 +36,5 @@ def main():
 
 
 if __name__ == '__main__':
-    # main()
-    print("ciao")
+    main()
+    # print("ciao")
