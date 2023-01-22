@@ -2,14 +2,17 @@
 FROM nvcr.io/nvidia/pytorch:20.11-py3
 
 # Environment Variables:
-ENV nnUNet_raw_data_base "/nnUNet_data/nnUNet_raw_data_base"
-ENV nnUNet_preprocessed "/nnUNet_data/nnUNet_preprocessed"
-ENV RESULTS_FOLDER "/nnUNet_data/nnUNet_trained_models"
+#ENV nnUNet_raw_data_base "/mnt/grafika/nnUNet_raw_data_base"
+#ENV nnUNet_preprocessed "/mnt/grafika/nnUNet_preprocessed"
+#ENV RESULTS_FOLDER "/mnt/grafika/nnUNet_trained_models"
 
 # Installing nnU-Net
-RUN git clone https://github.com/abergsneider/nnUNet.git
+RUN git clone -b DP --single-branch https://github.com/dominikaxx/nnUNet.git
 WORKDIR /workspace/nnUNet
 RUN pip install -e .
+COPY trained_models trained_models/
+ENV RESULTS_FOLDER=/workspace/nnUNet/trained_models/
+
 
 # Installing additional libraries
 WORKDIR /workspace/
@@ -19,14 +22,15 @@ RUN pip3 install graphviz
 
 # Setting up User on Image
 # Match UID to be same as the one on host machine, run command 'id'
-RUN useradd -u 3333454 -m aberg
-RUN chown -R aberg:aberg nnUNet/
-USER aberg
+RUN useradd -u 1000 grafika
+RUN chown -R grafika:grafika nnUNet/
+USER grafika
 
 # Git Credentials
-RUN git config --global user.name "abergsneider"
-RUN git config --global user.email "andresbergsneider@gmail.com"
+#RUN git config --global user.name "dominikaxx"
+#RUN git config --global user.email "domca.moly@gmail.com"
 
+ENTRYPOINT ["python3", "/workspace/nnUNet/predikuj.py"]
 
 
 

@@ -36,5 +36,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
-    # print(torch.version.cuda)
+    # main()
+    print("ciao")
