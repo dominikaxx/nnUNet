@@ -627,6 +627,8 @@ def predict_from_folder(model: str, input_folder: str, output_folder: str, folds
     :return:
     """
     maybe_mkdir_p(output_folder)
+    print("output foldrik > ", output_folder)
+    print("output foldrik 2 > ", str(output_folder))
     shutil.copy(join(model, 'plans.pkl'), output_folder)
 
     assert isfile(join(model, "plans.pkl")), "Folder with saved model weights must contain a plans.pkl file"
