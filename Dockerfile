@@ -1,7 +1,10 @@
 # Parent Image
 FROM nvcr.io/nvidia/pytorch:20.11-py3
 # Installing nnU-Net
-RUN git clone -b DP --single-branch https://github.com/dominikaxx/nnUNet.git
+ADD https://api.github.com/repos/dominikaxx/nnUNet/git/refs/heads/DP version.json
+RUN git clone -b DP https://github.com/dominikaxx/nnUNet.git
+#RUN git clone -b DP --single-branch https://github.com/dominikaxx/nnUNet.git
+
 WORKDIR /workspace/nnUNet
 RUN pip install -e .
 COPY nnUNet_trained_models nnUNet_trained_models/
@@ -17,7 +20,7 @@ RUN pip3 install graphviz
 # Setting up User on Image
 # Match UID to be same as the one on host machine, run command 'id'
 RUN useradd -u 1000 grafika
-RUN chown -R grafika:grafika /workspace/
+RUN chown -R grafika:grafika /workspace
 USER grafika
 
 # Git Credentials
