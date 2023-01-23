@@ -1,5 +1,8 @@
 # Parent Image
 FROM nvcr.io/nvidia/pytorch:20.11-py3
+
+RUN pip3 install torch==1.12.1+cu116 torchvision==0.13.1+cu116 torchaudio==0.12.1 -f https://download.pytorch.org/whl/torch_stable.html
+
 # Installing nnU-Net
 ADD https://api.github.com/repos/dominikaxx/nnUNet/git/refs/heads/DP version.json
 RUN git clone -b DP https://github.com/dominikaxx/nnUNet.git
