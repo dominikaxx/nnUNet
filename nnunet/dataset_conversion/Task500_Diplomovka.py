@@ -150,6 +150,6 @@ if __name__ == "__main__":
     #
     #         copy_BraTS_segmentation_and_convert_labels(seg, join(target_labelsTs, patient_name + ".nii.gz"))
 
-     my_evaluate_folder('/home/grafika/Desktop/prediction_ag', '/home/grafika/Pictures/nnUNet_raw_data_base/nnUNet_raw_data/Task500_Diplomovka/labelsTs')
+     my_evaluate_folder('/home/grafika/Desktop/prediction_baseline', '/home/grafika/Pictures/nnUNet_raw_data_base/nnUNet_raw_data/Task500_Diplomovka/labelsTs')
 
     # my_rank_then_aggregate_on_validation_result

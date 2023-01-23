@@ -12,7 +12,7 @@ def main():
     # tmp_input_folder = '/tmp_input'
     # tmp_output_folder = '/tmp_output'
     # maybe_mkdir_p(tmp_input_folder)
-    os.system("export RESULTS_FOLDER=/workspace/nnUNet/nnUNet_trained_models/")
+    os.system("export RESULTS_FOLDER=/workspace/nnUNet/nnUNet_trained_models")
     # convert raw data to nnunet format
     # contrast_to_number = {'t1': '0000', 't1ce': '0001', 't2': '0002', 'flair': '0003'}
     # for p in subfiles(input_folder, join=False):
@@ -25,7 +25,8 @@ def main():
     # run nnunet inference
     # tmp_output_folder_inferencia = join(tmp_output_folder, 'raw_output_1')
     os.system(
-        "nnUNet_predict -i {} -o {} -t 600 -m 3d_fullres -tr diplomovka_nnUNetTrainer --save_npz".format(
+        "nnUNet_predict -i {} -o {} -tr diplomovka_nnUNetTrainer -ctr nnUNetTrainerV2CascadeFullRes -m 3d_fullres -p "
+        "nnUNetPlansv2.1 -t Task600_Diplomovka_CarveMix -f all".format(
             input_folder, output_folder))
     # convert_labels_back_to_BraTS_2018_2019_convention(join(output_folder, 'pp_output'),
     #                                                   join(output_folder, 'pp_output_converted'))
