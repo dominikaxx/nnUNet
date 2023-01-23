@@ -16,6 +16,7 @@ WORKDIR /workspace/
 RUN pip3 install --upgrade git+https://github.com/nanohanno/hiddenlayer.git@bugfix/get_trace_graph#egg=hiddenlayer
 RUN pip3 install progress
 RUN pip3 install graphviz
+RUN pip3 install axial_attention
 
 # Setting up User on Image
 # Match UID to be same as the one on host machine, run command 'id'

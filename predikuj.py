@@ -25,8 +25,7 @@ def main():
     # run nnunet inference
     # tmp_output_folder_inferencia = join(tmp_output_folder, 'raw_output_1')
     os.system(
-        "nnUNet_predict -i {} -o {} -tr diplomovka_nnUNetTrainer -ctr nnUNetTrainerV2CascadeFullRes -m 3d_fullres -p "
-        "nnUNetPlansv2.1 -t Task600_Diplomovka_CarveMix -f all".format(
+        "nnUNet_predict -i {} -o {} --tr diplomovka_baseline -m 3d_fullres -p nnUNetPlansv2.1 -t 500 -f all".format(
             input_folder, output_folder))
     # convert_labels_back_to_BraTS_2018_2019_convention(join(output_folder, 'pp_output'),
     #                                                   join(output_folder, 'pp_output_converted'))
