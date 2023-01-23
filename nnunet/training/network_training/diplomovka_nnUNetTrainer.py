@@ -78,6 +78,4 @@ class diplomovka_baseline(nnUNetTrainerV2BraTSRegions_DA4_BN_BD):
                          deterministic, fp16)
         self.loss = DC_and_BCE_loss({}, {'batch_dice': True, 'do_bg': True, 'smooth': 0})
         self.max_num_epochs = 100
-        if torch.cuda.is_available():
-            self.network.cuda()
         print(self.network)
