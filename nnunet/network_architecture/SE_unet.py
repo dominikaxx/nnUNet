@@ -12,11 +12,8 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-
+from monai.networks.blocks import ChannelSELayer
 from copy import deepcopy
-
-from axial_attention import AxialPositionalEmbedding, AxialAttention
-
 from nnunet.utilities.nd_softmax import softmax_helper
 from torch import nn
 import torch
@@ -24,6 +21,84 @@ import numpy as np
 from nnunet.network_architecture.initialization import InitWeights_He
 from nnunet.network_architecture.neural_network import SegmentationNetwork
 import torch.nn.functional
+
+
+class CSELayer3D(nn.Module):
+    """
+    3D extension of Squeeze-and-Excitation (SE) block described in:
+        *Hu et al., Squeeze-and-Excitation Networks, arXiv:1709.01507*
+        *Zhu et al., AnatomyNet, arXiv:arXiv:1808.05238*
+    """
+
+    def __init__(self, num_channels, reduction_ratio=2):
+        """
+        :param num_channels: No of input channels
+        :param reduction_ratio: By how much should the num_channels should be reduced
+        """
+        super(CSELayer3D, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool3d(1)
+        num_channels_reduced = num_channels // reduction_ratio
+        print("CSELayer3D num_channels : ", num_channels)
+        print("CSELayer3D num_channels_reduced : ", num_channels_reduced)
+        self.reduction_ratio = reduction_ratio
+        self.fc1 = nn.Linear(num_channels, num_channels_reduced, bias=True)
+        self.fc2 = nn.Linear(num_channels_reduced, num_channels, bias=True)
+        self.relu = nn.ReLU()
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, input_tensor):
+        """
+        :param input_tensor: X, shape = (batch_size, num_channels, D, H, W)
+        :return: output tensor
+        """
+        batch_size, num_channels, D, H, W = input_tensor.size()
+        # Average along each channel
+        squeeze_tensor = self.avg_pool(input_tensor)
+
+        # channel excitation
+        fc_out_1 = self.relu(self.fc1(squeeze_tensor.view(batch_size, num_channels)))
+        fc_out_2 = self.sigmoid(self.fc2(fc_out_1))
+
+        output_tensor = torch.mul(input_tensor, fc_out_2.view(batch_size, num_channels, 1, 1, 1))
+
+        return output_tensor
+
+
+class CSELayer(nn.Module):
+    """
+    Re-implementation of Squeeze-and-Excitation (SE) block described in:
+        *Hu et al., Squeeze-and-Excitation Networks, arXiv:1709.01507*
+    """
+
+    def __init__(self, num_channels, reduction_ratio=2):
+        """
+        :param num_channels: No of input channels
+        :param reduction_ratio: By how much should the num_channels should be reduced
+        """
+        super(CSELayer, self).__init__()
+        num_channels_reduced = num_channels // reduction_ratio
+        self.reduction_ratio = reduction_ratio
+        self.fc1 = nn.Linear(num_channels, num_channels_reduced, bias=True)
+        self.fc2 = nn.Linear(num_channels_reduced, num_channels, bias=True)
+        self.relu = nn.ReLU()
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, input_tensor):
+        """
+        :param input_tensor: X, shape = (batch_size, num_channels, H, W)
+        :return: output tensor
+        """
+        batch_size, num_channels, H, W = input_tensor.size()
+        # Average along each channel
+        squeeze_tensor = input_tensor.view(batch_size, num_channels, -1).mean(dim=2)
+
+        # channel excitation
+        fc_out_1 = self.relu(self.fc1(squeeze_tensor))
+        fc_out_2 = self.sigmoid(self.fc2(fc_out_1))
+
+        a, b = squeeze_tensor.size()
+        output_tensor = torch.mul(input_tensor, fc_out_2.view(a, b, 1, 1))
+        return output_tensor
 
 
 class ConvDropoutNormNonlin(nn.Module):
@@ -139,7 +214,8 @@ class StackedConvLayers(nn.Module):
               [basic_block(output_feature_channels, output_feature_channels, self.conv_op,
                            self.conv_kwargs,
                            self.norm_op, self.norm_op_kwargs, self.dropout_op, self.dropout_op_kwargs,
-                           self.nonlin, self.nonlin_kwargs) for _ in range(num_convs - 1)]))
+                           self.nonlin, self.nonlin_kwargs) for _ in range(num_convs - 1)]),
+            CSELayer3D(output_feature_channels))
 
     def forward(self, x):
         return self.blocks(x)
@@ -167,7 +243,7 @@ class Upsample(nn.Module):
                                          align_corners=self.align_corners)
 
 
-class AG(SegmentationNetwork):
+class SE_unet(SegmentationNetwork):
     DEFAULT_BATCH_SIZE_3D = 2
     DEFAULT_PATCH_SIZE_3D = (64, 192, 160)
     SPACING_FACTOR_BETWEEN_STAGES = 2
@@ -194,19 +270,17 @@ class AG(SegmentationNetwork):
                  upscale_logits=False, convolutional_pooling=False, convolutional_upsampling=False,
                  max_num_features=None, basic_block=ConvDropoutNormNonlin,
                  seg_output_use_bias=False,
-                 encoder_scale=1, axial_attention=False, heads=8, dim_heads=32, volume_shape=(128, 160, 112),
-                 no_attention=None, dropout_level=None):
+                 encoder_scale=1):
         """
         basically more flexible than v1, architecture is the same
+
         Does this look complicated? Nah bro. Functionality > usability
+
         This does everything you need, including world peace.
+
         Questions? -> f.isensee@dkfz.de
         """
-        super(AG, self).__init__()
-        if dropout_level is None:
-            dropout_level = [4]
-        if no_attention is None:
-            no_attention = [0]
+        super(SE_unet, self).__init__()
         self.convolutional_upsampling = convolutional_upsampling
         self.convolutional_pooling = convolutional_pooling
         self.upscale_logits = upscale_logits
@@ -231,10 +305,7 @@ class AG(SegmentationNetwork):
         self.final_nonlin = final_nonlin
         self._deep_supervision = deep_supervision
         self.do_ds = deep_supervision
-        self.do_attention = axial_attention
-        self.volume_shape = np.array(volume_shape)
-        self.no_attention = no_attention  # level of the downsampling to not use attention
-        self.dropout_level = dropout_level  # level of the downsampling to apply dropout
+
         if conv_op == nn.Conv2d:
             upsample_mode = 'bilinear'
             pool_op = nn.MaxPool2d
@@ -275,8 +346,6 @@ class AG(SegmentationNetwork):
         self.td = []
         self.tu = []
         self.seg_outputs = []
-        self.axial_embedding = []
-        self.axial_attention = []
 
         output_features = base_num_features * encoder_scale
         input_features = input_channels
@@ -291,16 +360,11 @@ class AG(SegmentationNetwork):
             self.conv_kwargs['kernel_size'] = self.conv_kernel_sizes[d]
             self.conv_kwargs['padding'] = self.conv_pad_sizes[d]
             # add convolutions
-            tmp_dropout_op_kwargs = self.dropout_op_kwargs.copy()
-            if d not in self.dropout_level:
-                tmp_dropout_op_kwargs['p'] = 0.0
-
             self.conv_blocks_context.append(StackedConvLayers(input_features, output_features, num_conv_per_stage,
                                                               self.conv_op, self.conv_kwargs, self.norm_op,
                                                               self.norm_op_kwargs, self.dropout_op,
-                                                              tmp_dropout_op_kwargs, self.nonlin, self.nonlin_kwargs,
+                                                              self.dropout_op_kwargs, self.nonlin, self.nonlin_kwargs,
                                                               first_stride, basic_block=basic_block))
-
             if not self.convolutional_pooling:
                 self.td.append(pool_op(pool_op_kernel_sizes[d]))
             input_features = output_features
@@ -374,26 +438,6 @@ class AG(SegmentationNetwork):
                                   self.nonlin, self.nonlin_kwargs, basic_block=basic_block)
             ))
 
-            if self.do_attention:
-                if u not in self.no_attention:
-                    d = num_pool - u - 1
-                    emb_shape = (self.volume_shape / (2 ** d)).astype(np.int16)
-                    print("emb_shape ", emb_shape)
-                    print("dim ", nfeatures_from_skip)
-                    print("heads ", heads * 2 ** d)
-                    print("dim_heads ", dim_heads * 2 ** d)
-                    print("volume_shape ", volume_shape)
-                    print("----------------------------------------------------------------------------------")
-                    self.axial_embedding.append(AxialPositionalEmbedding(dim=nfeatures_from_skip, shape=emb_shape))
-                    self.axial_attention.append(AxialAttention(dim=nfeatures_from_skip,
-                                                               # heads=heads * 2 ** d,
-                                                               # dim_heads=dim_heads * 2 ** d,
-                                                               heads=8,
-                                                               dim_heads=32,
-                                                               dim_index=1,
-                                                               num_dimensions=3,
-                                                               sum_axial_out=False))
-
         for ds in range(len(self.conv_blocks_localization)):
             self.seg_outputs.append(conv_op(self.conv_blocks_localization[ds][-1].output_channels, num_classes,
                                             1, 1, 0, 1, 1, seg_output_use_bias))
@@ -420,29 +464,27 @@ class AG(SegmentationNetwork):
             self.upscale_logits_ops = nn.ModuleList(
                 self.upscale_logits_ops)  # lambda x:x is not a Module so we need to distinguish here
 
-        if self.do_attention:
-            self.axial_embedding = nn.ModuleList(self.axial_embedding)
-            self.axial_attention = nn.ModuleList(self.axial_attention)
-
         if self.weightInitializer is not None:
             self.apply(self.weightInitializer)
             # self.apply(print_module_training_status)
 
     def forward(self, x):
+        # print('self.conv_blocks_context', len(self.conv_blocks_context), self.conv_blocks_context)
+        # print('self.tu', len(self.tu), self.tu)
         skips = []
         seg_outputs = []
         for d in range(len(self.conv_blocks_context) - 1):
             x = self.conv_blocks_context[d](x)
+            # print('feature map in', x.shape)
             skips.append(x)
             if not self.convolutional_pooling:
                 x = self.td[d](x)
 
         x = self.conv_blocks_context[-1](x)
+        # print('feature map', x.shape)
 
         for u in range(len(self.tu)):
             x = self.tu[u](x)
-            if self.do_attention and u not in self.no_attention:
-                x = self.axial_attention[u](self.axial_embedding[u](x)) + x
             x = torch.cat((x, skips[-(u + 1)]), dim=1)
             x = self.conv_blocks_localization[u](x)
             seg_outputs.append(self.final_nonlin(self.seg_outputs[u](x)))
@@ -488,7 +530,7 @@ class AG(SegmentationNetwork):
                 map_size[pi] /= pool_op_kernel_sizes[p][pi]
             num_feat = min(num_feat * 2, max_num_features)
             num_blocks = (conv_per_stage * 2 + 1) if p < (
-                        npool - 1) else conv_per_stage  # conv_per_stage + conv_per_stage for the convs of encode/decode and 1 for transposed conv
+                    npool - 1) else conv_per_stage  # conv_per_stage + conv_per_stage for the convs of encode/decode and 1 for transposed conv
             tmp += num_blocks * np.prod(map_size, dtype=np.int64) * num_feat
             if deep_supervision and p < (npool - 2):
                 tmp += np.prod(map_size, dtype=np.int64) * num_classes
