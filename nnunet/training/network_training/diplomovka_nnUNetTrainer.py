@@ -2,6 +2,7 @@
 from torch import nn
 
 from nnunet.network_architecture.AG import AG
+from nnunet.network_architecture.RSE_unet import RSE_unet
 from nnunet.network_architecture.SE_unet import SE_unet
 from nnunet.network_architecture.generic_UNet import Generic_UNet
 from nnunet.network_architecture.initialization import InitWeights_He
@@ -37,7 +38,7 @@ class diplomovka_largeUnet_trainer(nnUNetTrainerV2BraTSRegions_DA4_BN_BD):
                                     encoder_scale=2)
         if torch.cuda.is_available():
             self.network.cuda()
-        self.network.inference_apply_nonlin = nn.Sigmoid()
+        # self.network.inference_apply_nonlin = nn.Sigmoid()
         self.max_num_epochs = 100
 
 
@@ -69,7 +70,7 @@ class AG_trainer(nnUNetTrainerV2BraTSRegions_DA4_BN_BD):
         # print(self.network)
         if torch.cuda.is_available():
             self.network.cuda()
-        self.network.inference_apply_nonlin = nn.Sigmoid()
+        # self.network.inference_apply_nonlin = nn.Sigmoid()
 
 
 class diplomovka_baseline(nnUNetTrainerV2BraTSRegions_DA4_BN_BD):
@@ -98,7 +99,7 @@ class diplomovka_baseline(nnUNetTrainerV2BraTSRegions_DA4_BN_BD):
                                     encoder_scale=1)
         if torch.cuda.is_available():
             self.network.cuda()
-        self.network.inference_apply_nonlin = nn.Sigmoid()
+        # self.network.inference_apply_nonlin = nn.Sigmoid()
         self.max_num_epochs = 100
         print(self.network)
 
@@ -130,4 +131,33 @@ class SE_trainer(nnUNetTrainerV2BraTSRegions_DA4_BN_BD):
         print(self.network)
         if torch.cuda.is_available():
             self.network.cuda()
-        self.network.inference_apply_nonlin = nn.Sigmoid()
+        # self.network.inference_apply_nonlin = nn.Sigmoid()
+
+
+class RSE_trainer(nnUNetTrainerV2BraTSRegions_DA4_BN_BD):
+    def initialize_network(self):
+        self.max_num_epochs = 100
+        if self.threeD:
+            conv_op = nn.Conv3d
+            dropout_op = nn.Dropout3d
+            norm_op = nn.BatchNorm3d
+
+        else:
+            conv_op = nn.Conv2d
+            dropout_op = nn.Dropout2d
+            norm_op = nn.BatchNorm2d
+
+        norm_op_kwargs = {'eps': 1e-5, 'affine': True}
+        dropout_op_kwargs = {'p': 0, 'inplace': True}
+        net_nonlin = nn.LeakyReLU
+        net_nonlin_kwargs = {'negative_slope': 1e-2, 'inplace': True}
+        self.network = RSE_unet(self.num_input_channels, self.base_num_features, self.num_classes,
+                                len(self.net_num_pool_op_kernel_sizes),
+                                self.conv_per_stage, 2, conv_op, norm_op, norm_op_kwargs, dropout_op,
+                                dropout_op_kwargs,
+                                net_nonlin, net_nonlin_kwargs, True, False, lambda x: x, InitWeights_He(1e-2),
+                                self.net_num_pool_op_kernel_sizes, self.net_conv_kernel_sizes, False, True, True, 320,
+                                encoder_scale=1)
+        print(self.network)
+        if torch.cuda.is_available():
+            self.network.cuda()
