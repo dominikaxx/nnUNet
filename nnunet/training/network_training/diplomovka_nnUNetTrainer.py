@@ -1,12 +1,12 @@
 ﻿import torch
 from torch import nn
+from torchsummary import summary
 
 from nnunet.network_architecture.AG import AG
 from nnunet.network_architecture.RSE_unet import RSE_unet
 from nnunet.network_architecture.SE_unet import SE_unet
 from nnunet.network_architecture.generic_UNet import Generic_UNet
 from nnunet.network_architecture.initialization import InitWeights_He
-from nnunet.training.loss_functions.dice_loss import DC_and_BCE_loss
 from nnunet.training.network_training.competitions_with_custom_Trainers.BraTS2020.nnUNetTrainerV2BraTSRegions_moreDA import \
     nnUNetTrainerV2BraTSRegions_DA4_BN_BD
 
@@ -34,7 +34,7 @@ class diplomovka_largeUnet_trainer(nnUNetTrainerV2BraTSRegions_DA4_BN_BD):
                                     dropout_op_kwargs,
                                     net_nonlin, net_nonlin_kwargs, True, False, lambda x: x, InitWeights_He(1e-2),
                                     self.net_num_pool_op_kernel_sizes, self.net_conv_kernel_sizes, False, True, True,
-                                    512,
+                                    1024,
                                     encoder_scale=2)
         if torch.cuda.is_available():
             self.network.cuda()
@@ -66,10 +66,11 @@ class AG_trainer(nnUNetTrainerV2BraTSRegions_DA4_BN_BD):
                           net_nonlin, net_nonlin_kwargs, True, False, lambda x: x, InitWeights_He(1e-2),
                           self.net_num_pool_op_kernel_sizes, self.net_conv_kernel_sizes, False, True, True, 320,
                           encoder_scale=1,
-                          axial_attention=True, heads=1, dim_heads=4, volume_shape=(128, 160, 112), no_attention=[4])
-        # print(self.network)
+                          axial_attention=True, heads=2, dim_heads=8, volume_shape=(128, 160, 112), no_attention=[4])
         if torch.cuda.is_available():
             self.network.cuda()
+            summary(self.network, (4, 128, 160, 112))
+
         # self.network.inference_apply_nonlin = nn.Sigmoid()
 
 

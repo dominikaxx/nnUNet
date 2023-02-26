@@ -388,8 +388,8 @@ class AG(SegmentationNetwork):
                     self.axial_attention.append(AxialAttention(dim=nfeatures_from_skip,
                                                                # heads=heads * 2 ** d,
                                                                # dim_heads=dim_heads * 2 ** d,
-                                                               heads=8,
-                                                               dim_heads=32,
+                                                               heads=2,
+                                                               dim_heads=36,
                                                                dim_index=1,
                                                                num_dimensions=3,
                                                                sum_axial_out=False))

@@ -64,26 +64,14 @@ def resize_image_itk(itkimage, newSize, resamplemethod=sitk.sitkNearestNeighbor)
     return itkimgResampled
 
 
-"""
-==========================================
-The input must be nii.gz which contains 
-import header information such as spacing.
-Spacing will affect the generation of the
-signed distance.
-=========================================
-"""
-
-
 def generate_new_sample(image_a, image_b, label_a, label_b):
     spacing, direction, origin = get_head(image_a[0])
-    print("get_head(image_a[0]) ", get_head(image_a[0]))
-    print("spacing ", spacing)
     target_a = []
     target_b = []
     Mean = []
     Std = []
     mod_num = len(image_a)
-    # print("mod_num ", mod_num)
+    print("mod_num ", mod_num)
     temp_resize_nii_path = 'temp_image.nii.gz'
     temp_resize_nii_label_path = 'temp_label.nii.gz'
     label1 = sitk.ReadImage(label_b)
@@ -132,15 +120,17 @@ def generate_new_sample(image_a, image_b, label_a, label_b):
     # print(dis_array)
     c = np.random.beta(1, 1)  # [0,1]             #creat distance
     print("c1 ", c)
-    c = (c - 0.5) * 2  # [-1.1]
-    print("c2 ", c)
+    # c = (c - 0.5) * 2  # [-1.1]
+    # print("c2 ", c)
 
-# TODO make lambda bigger to increase ROI size
+    # TODO make lambda bigger to increase ROI size
+    print("minimalna hodnota z pola dis array: ", np.min(dis_array))
     if c > 0:
         lam = c * np.min(dis_array) / 2  # λl = -1/2|min(dis_array)|
     else:
         lam = c * np.min(dis_array)
 
+    lam = abs(lam)
     print("lam ", lam)
     mask = (dis_array < lam).astype('float32')  # creat M
     # print("typ maska ", type(mask))
@@ -188,26 +178,8 @@ if __name__ == '__main__':
     mod_num = int(len(simpleMod_img) / len(simpleCases))
     prefix = Cases[0].split('_')[0]
 
-    """
-    Prepare data split, note that validation sets do not participate in 
-    CarveMix, and remember to split training sets and validation sets 
-    independently in nnunet.training.network_training.nnUNetTrainerV2.do_split 
-    when using nnUNet framework
-    """
     num = len(Cases)
     Cases.sort()
-    start = 1
-    # TODO validacny set tu nie je asi potrebne oddelovat
-    val_num = int(num * 0.2)
-    random.seed(985)
-    val_id = random.sample(range(1, num - 1), val_num)
-    val_id.sort()
-    val_set = [Cases[i - start] for i in val_id]
-    tr_set = list(set(Cases) - set(val_set))
-    Cases = tr_set
-    print('==========tr_set_size:%d============' % len(Cases))
-    print('====================================')
-    print(opt)
 
     with open(opt.mixid_csv_path, 'w') as f:
         f.write('id,mixid1,mixid2,lam\n')

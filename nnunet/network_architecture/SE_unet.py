@@ -30,7 +30,7 @@ class CSELayer3D(nn.Module):
         *Zhu et al., AnatomyNet, arXiv:arXiv:1808.05238*
     """
 
-    def __init__(self, num_channels, reduction_ratio=2):
+    def __init__(self, num_channels, reduction_ratio=4):
         """
         :param num_channels: No of input channels
         :param reduction_ratio: By how much should the num_channels should be reduced
