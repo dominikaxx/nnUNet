@@ -380,15 +380,15 @@ class AG(SegmentationNetwork):
                     emb_shape = (self.volume_shape / (2 ** d)).astype(np.int16)
                     print("emb_shape ", emb_shape)
                     print("dim ", nfeatures_from_skip)
-                    print("heads ", heads * 2 ** d)
-                    print("dim_heads ", dim_heads * 2 ** d)
+                    # print("heads ", heads * 2 ** d)
+                    # print("dim_heads ", dim_heads * 2 ** d)
                     print("volume_shape ", volume_shape)
                     print("----------------------------------------------------------------------------------")
                     self.axial_embedding.append(AxialPositionalEmbedding(dim=nfeatures_from_skip, shape=emb_shape))
                     self.axial_attention.append(AxialAttention(dim=nfeatures_from_skip,
                                                                # heads=heads * 2 ** d,
                                                                # dim_heads=dim_heads * 2 ** d,
-                                                               heads=2,
+                                                               heads=4,
                                                                dim_heads=36,
                                                                dim_index=1,
                                                                num_dimensions=3,

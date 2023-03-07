@@ -23,27 +23,22 @@ from nnunet.network_architecture.neural_network import SegmentationNetwork
 import torch.nn.functional
 
 
-class CSELayer3D(nn.Module):
-    """
-    3D extension of Squeeze-and-Excitation (SE) block described in:
-        *Hu et al., Squeeze-and-Excitation Networks, arXiv:1709.01507*
-        *Zhu et al., AnatomyNet, arXiv:arXiv:1808.05238*
-    """
-
-    def __init__(self, num_channels, reduction_ratio=4):
+class SE_Block(nn.Module):
+    def __init__(self, num_channels, reduction_ratio=16):
         """
         :param num_channels: No of input channels
         :param reduction_ratio: By how much should the num_channels should be reduced
         """
-        super(CSELayer3D, self).__init__()
+        super(SE_Block, self).__init__()
         self.avg_pool = nn.AdaptiveAvgPool3d(1)
         num_channels_reduced = num_channels // reduction_ratio
-        print("CSELayer3D num_channels : ", num_channels)
-        print("CSELayer3D num_channels_reduced : ", num_channels_reduced)
+        print("SE_Block num_channels : ", num_channels)
+        print("SE_Block reduction_ratio : ", reduction_ratio)
+        print("SE_Block num_channels_reduced : ", num_channels_reduced)
         self.reduction_ratio = reduction_ratio
         self.fc1 = nn.Linear(num_channels, num_channels_reduced, bias=True)
-        self.fc2 = nn.Linear(num_channels_reduced, num_channels, bias=True)
         self.relu = nn.ReLU()
+        self.fc2 = nn.Linear(num_channels_reduced, num_channels, bias=True)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, input_tensor):
@@ -60,44 +55,6 @@ class CSELayer3D(nn.Module):
         fc_out_2 = self.sigmoid(self.fc2(fc_out_1))
 
         output_tensor = torch.mul(input_tensor, fc_out_2.view(batch_size, num_channels, 1, 1, 1))
-
-        return output_tensor
-
-
-class CSELayer(nn.Module):
-    """
-    Re-implementation of Squeeze-and-Excitation (SE) block described in:
-        *Hu et al., Squeeze-and-Excitation Networks, arXiv:1709.01507*
-    """
-
-    def __init__(self, num_channels, reduction_ratio=2):
-        """
-        :param num_channels: No of input channels
-        :param reduction_ratio: By how much should the num_channels should be reduced
-        """
-        super(CSELayer, self).__init__()
-        num_channels_reduced = num_channels // reduction_ratio
-        self.reduction_ratio = reduction_ratio
-        self.fc1 = nn.Linear(num_channels, num_channels_reduced, bias=True)
-        self.fc2 = nn.Linear(num_channels_reduced, num_channels, bias=True)
-        self.relu = nn.ReLU()
-        self.sigmoid = nn.Sigmoid()
-
-    def forward(self, input_tensor):
-        """
-        :param input_tensor: X, shape = (batch_size, num_channels, H, W)
-        :return: output tensor
-        """
-        batch_size, num_channels, H, W = input_tensor.size()
-        # Average along each channel
-        squeeze_tensor = input_tensor.view(batch_size, num_channels, -1).mean(dim=2)
-
-        # channel excitation
-        fc_out_1 = self.relu(self.fc1(squeeze_tensor))
-        fc_out_2 = self.sigmoid(self.fc2(fc_out_1))
-
-        a, b = squeeze_tensor.size()
-        output_tensor = torch.mul(input_tensor, fc_out_2.view(a, b, 1, 1))
         return output_tensor
 
 
@@ -215,7 +172,7 @@ class StackedConvLayers(nn.Module):
                            self.conv_kwargs,
                            self.norm_op, self.norm_op_kwargs, self.dropout_op, self.dropout_op_kwargs,
                            self.nonlin, self.nonlin_kwargs) for _ in range(num_convs - 1)]),
-            CSELayer3D(output_feature_channels))
+            SE_Block(output_feature_channels, 16))
 
     def forward(self, x):
         return self.blocks(x)

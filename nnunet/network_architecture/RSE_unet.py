@@ -139,7 +139,7 @@ class StackedConvLayers(nn.Module):
                            self.conv_kwargs,
                            self.norm_op, self.norm_op_kwargs, self.dropout_op, self.dropout_op_kwargs,
                            self.nonlin, self.nonlin_kwargs) for _ in range(num_convs - 1)]),
-            ResidualSELayer(3, output_feature_channels))
+            ResidualSELayer(3, output_feature_channels, r=4))
 
     def forward(self, x):
         return self.blocks(x)
