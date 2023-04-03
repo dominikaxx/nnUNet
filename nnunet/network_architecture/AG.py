@@ -378,11 +378,13 @@ class AG(SegmentationNetwork):
                 if u not in self.no_attention:
                     d = num_pool - u - 1
                     emb_shape = (self.volume_shape / (2 ** d)).astype(np.int16)
-                    print("emb_shape ", emb_shape)
-                    print("dim ", nfeatures_from_skip)
+                    # print("emb_shape ", emb_shape)
+                    # print("dim ", nfeatures_from_skip)
+                    print("u ", u)
+                    print("d ", d)
                     # print("heads ", heads * 2 ** d)
                     # print("dim_heads ", dim_heads * 2 ** d)
-                    print("volume_shape ", volume_shape)
+                    # print("volume_shape ", volume_shape)
                     print("----------------------------------------------------------------------------------")
                     self.axial_embedding.append(AxialPositionalEmbedding(dim=nfeatures_from_skip, shape=emb_shape))
                     self.axial_attention.append(AxialAttention(dim=nfeatures_from_skip,

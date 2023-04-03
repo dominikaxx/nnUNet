@@ -16,7 +16,7 @@ def get_distance(f, spacing):
     np.set_printoptions(threshold=sys.maxsize)
     dist_func = ndimage.distance_transform_edt
     distance = np.where(f, -(dist_func(f, sampling=spacing)),
-                        dist_func(f, sampling=spacing))
+                        dist_func(1-f, sampling=spacing))
     return distance
 
 
@@ -130,7 +130,7 @@ def generate_new_sample(image_a, image_b, label_a, label_b):
     else:
         lam = c * np.min(dis_array)
 
-    lam = abs(lam)
+    # lam = abs(lam)
     print("lam ", lam)
     mask = (dis_array < lam).astype('float32')  # creat M
     # print("typ maska ", type(mask))

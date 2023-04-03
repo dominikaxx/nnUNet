@@ -1,6 +1,10 @@
 # Parent Image
-FROM nvcr.io/nvidia/pytorch:20.11-py3
+FROM nvcr.io/nvidia/pytorch:22.11-py3
 
+#RUN apt-get update
+#RUN apt install -y python3.8.10
+#RUN apt install -y python3-pip
+#RUN apt install -y git
 RUN pip3 install torch==1.12.1+cu116 torchvision==0.13.1+cu116 torchaudio==0.12.1 -f https://download.pytorch.org/whl/torch_stable.html
 
 # Installing nnU-Net

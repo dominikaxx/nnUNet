@@ -1,6 +1,8 @@
+import multiprocessing
 import shutil
 from collections import OrderedDict
-
+from multiprocessing import Pool
+import SimpleITK as sitk
 import numpy as np
 import scipy.stats as ss
 from batchgenerators.utilities.file_and_folder_operations import *
@@ -9,6 +11,29 @@ from nnunet.dataset_conversion.Task043_BraTS_2019 import copy_BraTS_segmentation
 from nnunet.evaluation.region_based_evaluation import get_brats_regions, evaluate_regions
 from nnunet.paths import nnUNet_raw_data
 
+def convert_labels_back_to_BraTS(seg: np.ndarray):
+    new_seg = np.zeros_like(seg)
+    new_seg[seg == 1] = 2
+    new_seg[seg == 3] = 4
+    new_seg[seg == 2] = 1
+    return new_seg
+
+
+def load_convert_labels_back_to_BraTS(filename, input_folder, output_folder):
+    a = sitk.ReadImage(join(input_folder, filename))
+    b = sitk.GetArrayFromImage(a)
+    c = convert_labels_back_to_BraTS(b)
+    d = sitk.GetImageFromArray(c)
+    d.CopyInformation(a)
+    sitk.WriteImage(d, join(output_folder, filename))
+def convert_folder_with_preds_back_to_BraTS_labeling_convention(input_folder: str, output_folder: str, num_processes: int = 12):
+    """
+    reads all prediction files (nifti) in the input folder, converts the labels back to BraTS convention and saves the
+    """
+    maybe_mkdir_p(output_folder)
+    nii = subfiles(input_folder, suffix='.nii.gz', join=False)
+    with multiprocessing.get_context("spawn").Pool(num_processes) as p:
+        p.starmap(load_convert_labels_back_to_BraTS, zip(nii, [input_folder] * len(nii), [output_folder] * len(nii)))
 
 def rank_algorithms(data: np.ndarray):
     """
@@ -55,9 +80,10 @@ def my_evaluate_folder(folder, gt_folder):
 
 
 if __name__ == "__main__":
-    # task_name = "Task500_Diplomovka"
+    task_name = "Task500_Diplomovka"
     # downloaded_data_dir = "/home/grafika/Desktop/train/"
     # downloaded_data_dir_test = "/home/grafika/Desktop/test/"
+    # downloaded_data_dir_val = "/home/grafika/Downloads/val/"
     # result_dir = "/home/grafika/Desktop/Task500_Diplomovka/"
     #
     # target_base = join(nnUNet_raw_data, task_name)
@@ -65,11 +91,15 @@ if __name__ == "__main__":
     # target_imagesTs = join(target_base, "imagesTs")
     # target_labelsTr = join(target_base, "labelsTr")
     # target_labelsTs = join(target_base, "labelsTs")
-    #
+    # target_imagesVal = join(target_base, "imagesVal")
+
+
     # maybe_mkdir_p(target_imagesTr)
     # maybe_mkdir_p(target_imagesTs)
     # maybe_mkdir_p(target_labelsTr)
     # maybe_mkdir_p(target_labelsTs)
+    # maybe_mkdir_p(target_imagesVal)
+    #
     #
     # patient_names = []
     # cur = join(downloaded_data_dir)
@@ -124,7 +154,7 @@ if __name__ == "__main__":
     # json_dict['test'] = []
     #
     # save_json(json_dict, join(target_base, "dataset.json"))
-    #
+
     # if downloaded_data_dir_test is not None:
     #     for p in subdirs(downloaded_data_dir_test, join=False):
     #         patdir = join(downloaded_data_dir_test, p)
@@ -150,7 +180,32 @@ if __name__ == "__main__":
     #
     #         copy_BraTS_segmentation_and_convert_labels(seg, join(target_labelsTs, patient_name + ".nii.gz"))
 
-    my_evaluate_folder('/home/grafika/Desktop/prediction_se_16',
-                       '/home/grafika/Pictures/nnUNet_raw_data_base/nnUNet_raw_data/Task500_Diplomovka/labelsTs')
+
+    # if downloaded_data_dir_val is not None:
+    #     for p in subdirs(downloaded_data_dir_val, join=False):
+    #         patdir = join(downloaded_data_dir_val, p)
+    #         patient_name = p
+    #         t1 = join(patdir, p + "_t1.nii.gz")
+    #         t1c = join(patdir, p + "_t1ce.nii.gz")
+    #         t2 = join(patdir, p + "_t2.nii.gz")
+    #         flair = join(patdir, p + "_flair.nii.gz")
+    #
+    #         assert all([
+    #             isfile(t1),
+    #             isfile(t1c),
+    #             isfile(t2),
+    #             isfile(flair)
+    #         ]), "%s" % patient_name
+    #
+    #         shutil.copy(t1, join(target_imagesVal, patient_name + "_0000.nii.gz"))
+    #         shutil.copy(t1c, join(target_imagesVal, patient_name + "_0001.nii.gz"))
+    #         shutil.copy(t2, join(target_imagesVal, patient_name + "_0002.nii.gz"))
+    #         shutil.copy(flair, join(target_imagesVal, patient_name + "_0003.nii.gz"))
+
+
+    # my_evaluate_folder('/home/grafika/Desktop/prediction_se_large_5_fold',
+    #                    '/home/grafika/Pictures/nnUNet_raw_data_base/nnUNet_raw_data/Task500_Diplomovka/labelsTs')
+
+    convert_folder_with_preds_back_to_BraTS_labeling_convention("/home/grafika/Desktop/BRATS_prediction_large_unet_axial_att", "/home/grafika/Desktop/BRATS_CONVENTION_prediction_large_unet_axial_att")
 
 # my_rank_then_aggregate_on_validation_result

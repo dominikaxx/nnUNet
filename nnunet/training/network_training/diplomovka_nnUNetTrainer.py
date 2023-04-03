@@ -217,7 +217,7 @@ class AG_trainer_large(nnUNetTrainerV2BraTSRegions_DA4_BN_BD):
                           net_nonlin, net_nonlin_kwargs, True, False, lambda x: x, InitWeights_He(1e-2),
                           self.net_num_pool_op_kernel_sizes, self.net_conv_kernel_sizes, False, True, True, 512,
                           encoder_scale=2,
-                          axial_attention=True, heads=4, dim_heads=36, volume_shape=(128, 160, 112), no_attention=[4])
+                          axial_attention=True, heads=4, dim_heads=36, volume_shape=(128, 128, 128), no_attention=[4])
         if torch.cuda.is_available():
             self.network.cuda()
         # self.network.inference_apply_nonlin = nn.Sigmoid()
