@@ -6,6 +6,7 @@ from nnunet.dataset_conversion.Task032_BraTS_2018 import convert_labels_back_to_
 
 
 def main():
+    print("ciao from main")
     input_folder = '/input'
     output_folder = '/output'
 
@@ -36,5 +37,5 @@ def main():
 
 
 if __name__ == '__main__':
-    # main()
+    main()
     print("ciao")

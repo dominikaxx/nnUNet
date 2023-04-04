@@ -1,10 +1,6 @@
 # Parent Image
 FROM nvcr.io/nvidia/pytorch:22.11-py3
 
-#RUN apt-get update
-#RUN apt install -y python3.8.10
-#RUN apt install -y python3-pip
-#RUN apt install -y git
 RUN pip3 install torch==1.12.1+cu116 torchvision==0.13.1+cu116 torchaudio==0.12.1 -f https://download.pytorch.org/whl/torch_stable.html
 
 # Installing nnU-Net
@@ -27,14 +23,14 @@ RUN pip3 install axial_attention
 
 # Setting up User on Image
 # Match UID to be same as the one on host machine, run command 'id'
-RUN useradd -u 1000 grafika
-RUN chown -R grafika:grafika /workspace
-USER grafika
+#RUN useradd -u 1000 grafika
+#RUN chown -R grafika:grafika /workspace
+#USER grafika
 
 # Git Credentials
 #RUN git config --global user.name "dominikaxx"
 #RUN git config --global user.email "domca.moly@gmail.com"
 
-#ENTRYPOINT ["python3", "/workspace/nnUNet/predikuj.py"]
+ENTRYPOINT ["python3", "/workspace/nnUNet/predikuj.py"]
 
 
