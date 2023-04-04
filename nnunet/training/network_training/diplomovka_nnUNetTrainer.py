@@ -1,6 +1,5 @@
 ﻿import torch
 from torch import nn
-from torchsummary import summary
 
 from nnunet.network_architecture.AG import AG
 from nnunet.network_architecture.RSE_unet import RSE_unet
