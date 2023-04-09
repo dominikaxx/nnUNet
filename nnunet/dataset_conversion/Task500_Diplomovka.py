@@ -206,6 +206,6 @@ if __name__ == "__main__":
     # my_evaluate_folder('/home/grafika/Desktop/prediction_se_large_5_fold',
     #                    '/home/grafika/Pictures/nnUNet_raw_data_base/nnUNet_raw_data/Task500_Diplomovka/labelsTs')
 
-    convert_folder_with_preds_back_to_BraTS_labeling_convention("/home/grafika/Desktop/BRATS_prediction_large_unet_axial_att", "/home/grafika/Desktop/BRATS_CONVENTION_prediction_large_unet_axial_att")
+    convert_folder_with_preds_back_to_BraTS_labeling_convention("/home/grafika/Desktop/BRATS_prediction_baseline", "/home/grafika/Desktop/BRATS_CONVENTION_prediction_baseline")
 
 # my_rank_then_aggregate_on_validation_result

@@ -20,6 +20,8 @@ RUN pip3 install --upgrade git+https://github.com/nanohanno/hiddenlayer.git@bugf
 RUN pip3 install progress
 RUN pip3 install graphviz
 RUN pip3 install axial_attention
+RUN pip3 install monai
+
 
 # Setting up User on Image
 # Match UID to be same as the one on host machine, run command 'id'
