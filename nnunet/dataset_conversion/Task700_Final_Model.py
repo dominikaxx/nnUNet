@@ -178,4 +178,4 @@ if __name__ == "__main__":
     #                    '/home/grafika/Pictures/nnUNet_raw_data_base/nnUNet_raw_data/Task700_Final_Model/labelsTs')
     #
     # convert_folder_with_preds_back_to_BraTS_labeling_convention("/home/grafika/Desktop/BRATS_prediction_large_unet_axial_att", "/home/grafika/Desktop/BRATS_CONVENTION_prediction_large_unet_axial_att")
-    #
+

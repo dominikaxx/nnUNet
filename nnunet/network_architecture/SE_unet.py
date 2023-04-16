@@ -12,49 +12,46 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-from monai.networks.blocks import ChannelSELayer
 from copy import deepcopy
-from nnunet.utilities.nd_softmax import softmax_helper
-from torch import nn
-import torch
+
 import numpy as np
+import torch
+import torch.nn.functional
+from torch import nn
+
 from nnunet.network_architecture.initialization import InitWeights_He
 from nnunet.network_architecture.neural_network import SegmentationNetwork
-import torch.nn.functional
+from nnunet.utilities.nd_softmax import softmax_helper
 
 
 class SE_Block(nn.Module):
-    def __init__(self, num_channels, reduction_ratio=16):
-        """
-        :param num_channels: No of input channels
-        :param reduction_ratio: By how much should the num_channels should be reduced
-        """
+    def __init__(self, num_channels, reduction_ratio=4):
         super(SE_Block, self).__init__()
-        self.avg_pool = nn.AdaptiveAvgPool3d(1)
-        num_channels_reduced = num_channels // reduction_ratio
+
+        if num_channels % reduction_ratio != 0:
+            raise ValueError('num_channels must be divisible by reduction_ratio (default = 4)')
+
         print("SE_Block num_channels : ", num_channels)
         print("SE_Block reduction_ratio : ", reduction_ratio)
-        print("SE_Block num_channels_reduced : ", num_channels_reduced)
+        print("SE_Block num_channels_reduced : ", num_channels // reduction_ratio)
         self.reduction_ratio = reduction_ratio
-        self.fc1 = nn.Linear(num_channels, num_channels_reduced, bias=True)
+        self.avg_pool = nn.AdaptiveAvgPool3d(1)
+        self.linear1 = nn.Linear(num_channels, num_channels // reduction_ratio, bias=True)
         self.relu = nn.ReLU()
-        self.fc2 = nn.Linear(num_channels_reduced, num_channels, bias=True)
+        self.linear2 = nn.Linear(num_channels // reduction_ratio, num_channels, bias=True)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, input_tensor):
-        """
-        :param input_tensor: X, shape = (batch_size, num_channels, D, H, W)
-        :return: output tensor
-        """
+
         batch_size, num_channels, D, H, W = input_tensor.size()
         # Average along each channel
         squeeze_tensor = self.avg_pool(input_tensor)
 
         # channel excitation
-        fc_out_1 = self.relu(self.fc1(squeeze_tensor.view(batch_size, num_channels)))
-        fc_out_2 = self.sigmoid(self.fc2(fc_out_1))
+        fc1 = self.relu(self.linear1(squeeze_tensor.view(batch_size, num_channels)))
+        fc2 = self.sigmoid(self.linear2(fc1))
 
-        output_tensor = torch.mul(input_tensor, fc_out_2.view(batch_size, num_channels, 1, 1, 1))
+        output_tensor = torch.mul(input_tensor, fc2.view(batch_size, num_channels, 1, 1, 1))
         return output_tensor
 
 
