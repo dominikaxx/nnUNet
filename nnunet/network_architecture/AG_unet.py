@@ -14,6 +14,9 @@
 
 
 from copy import deepcopy
+
+from axial_attention import AxialPositionalEmbedding, AxialAttention
+
 from nnunet.utilities.nd_softmax import softmax_helper
 from torch import nn
 import torch
@@ -164,7 +167,7 @@ class Upsample(nn.Module):
                                          align_corners=self.align_corners)
 
 
-class Generic_UNet(SegmentationNetwork):
+class AG_unet(SegmentationNetwork):
     DEFAULT_BATCH_SIZE_3D = 2
     DEFAULT_PATCH_SIZE_3D = (64, 192, 160)
     SPACING_FACTOR_BETWEEN_STAGES = 2
@@ -191,17 +194,19 @@ class Generic_UNet(SegmentationNetwork):
                  upscale_logits=False, convolutional_pooling=False, convolutional_upsampling=False,
                  max_num_features=None, basic_block=ConvDropoutNormNonlin,
                  seg_output_use_bias=False,
-                 encoder_scale=1):
+                 encoder_scale=1, axial_attention=False, heads=8, dim_heads=32, volume_shape=(128, 160, 112),
+                 no_attention=None, dropout_level=None):
         """
         basically more flexible than v1, architecture is the same
-
         Does this look complicated? Nah bro. Functionality > usability
-
         This does everything you need, including world peace.
-
         Questions? -> f.isensee@dkfz.de
         """
-        super(Generic_UNet, self).__init__()
+        super(AG_unet, self).__init__()
+        if dropout_level is None:
+            dropout_level = [4]
+        if no_attention is None:
+            no_attention = [0]
         self.convolutional_upsampling = convolutional_upsampling
         self.convolutional_pooling = convolutional_pooling
         self.upscale_logits = upscale_logits
@@ -226,7 +231,10 @@ class Generic_UNet(SegmentationNetwork):
         self.final_nonlin = final_nonlin
         self._deep_supervision = deep_supervision
         self.do_ds = deep_supervision
-
+        self.do_attention = axial_attention
+        self.volume_shape = np.array(volume_shape)
+        self.no_attention = no_attention  # level of the downsampling to not use attention
+        self.dropout_level = dropout_level  # level of the downsampling to apply dropout
         if conv_op == nn.Conv2d:
             upsample_mode = 'bilinear'
             pool_op = nn.MaxPool2d
@@ -267,6 +275,8 @@ class Generic_UNet(SegmentationNetwork):
         self.td = []
         self.tu = []
         self.seg_outputs = []
+        self.axial_embedding = []
+        self.axial_attention = []
 
         output_features = base_num_features * encoder_scale
         input_features = input_channels
@@ -281,11 +291,16 @@ class Generic_UNet(SegmentationNetwork):
             self.conv_kwargs['kernel_size'] = self.conv_kernel_sizes[d]
             self.conv_kwargs['padding'] = self.conv_pad_sizes[d]
             # add convolutions
+            tmp_dropout_op_kwargs = self.dropout_op_kwargs.copy()
+            if d not in self.dropout_level:
+                tmp_dropout_op_kwargs['p'] = 0.0
+
             self.conv_blocks_context.append(StackedConvLayers(input_features, output_features, num_conv_per_stage,
                                                               self.conv_op, self.conv_kwargs, self.norm_op,
                                                               self.norm_op_kwargs, self.dropout_op,
-                                                              self.dropout_op_kwargs, self.nonlin, self.nonlin_kwargs,
+                                                              tmp_dropout_op_kwargs, self.nonlin, self.nonlin_kwargs,
                                                               first_stride, basic_block=basic_block))
+
             if not self.convolutional_pooling:
                 self.td.append(pool_op(pool_op_kernel_sizes[d]))
             input_features = output_features
@@ -353,10 +368,31 @@ class Generic_UNet(SegmentationNetwork):
                 StackedConvLayers(n_features_after_tu_and_concat, nfeatures_from_skip, num_conv_per_stage - 1,
                                   self.conv_op, self.conv_kwargs, self.norm_op, self.norm_op_kwargs, self.dropout_op,
                                   self.dropout_op_kwargs, self.nonlin, self.nonlin_kwargs, basic_block=basic_block),
-                StackedConvLayers(nfeatures_from_skip, int(final_num_features/encoder_scale), 1, self.conv_op, self.conv_kwargs,
+                StackedConvLayers(nfeatures_from_skip, int(final_num_features / encoder_scale), 1, self.conv_op,
+                                  self.conv_kwargs,
                                   self.norm_op, self.norm_op_kwargs, self.dropout_op, self.dropout_op_kwargs,
                                   self.nonlin, self.nonlin_kwargs, basic_block=basic_block)
             ))
+
+            if self.do_attention:
+                if u not in self.no_attention:
+                    d = num_pool - u - 1
+                    emb_shape = (self.volume_shape / (2 ** d)).astype(np.int16)
+                    print("emb_shape ", emb_shape)
+                    print("dim ", nfeatures_from_skip)
+                    print("u ", u)
+                    print("d ", d)
+                    print("volume_shape ", volume_shape)
+                    print("----------------------------------------------------------------------------------")
+                    self.axial_embedding.append(AxialPositionalEmbedding(dim=nfeatures_from_skip, shape=emb_shape))
+                    self.axial_attention.append(AxialAttention(dim=nfeatures_from_skip,
+                                                               # heads=heads * 2 ** d,
+                                                               # dim_heads=dim_heads * 2 ** d,
+                                                               heads=4,
+                                                               dim_heads=36,
+                                                               dim_index=1,
+                                                               num_dimensions=3,
+                                                               sum_axial_out=False))
 
         for ds in range(len(self.conv_blocks_localization)):
             self.seg_outputs.append(conv_op(self.conv_blocks_localization[ds][-1].output_channels, num_classes,
@@ -384,27 +420,28 @@ class Generic_UNet(SegmentationNetwork):
             self.upscale_logits_ops = nn.ModuleList(
                 self.upscale_logits_ops)  # lambda x:x is not a Module so we need to distinguish here
 
+        if self.do_attention:
+            self.axial_embedding = nn.ModuleList(self.axial_embedding)
+            self.axial_attention = nn.ModuleList(self.axial_attention)
+
         if self.weightInitializer is not None:
             self.apply(self.weightInitializer)
-            # self.apply(print_module_training_status)
 
     def forward(self, x):
-        # print('self.conv_blocks_context', len(self.conv_blocks_context), self.conv_blocks_context)
-        # print('self.tu', len(self.tu), self.tu)
         skips = []
         seg_outputs = []
         for d in range(len(self.conv_blocks_context) - 1):
             x = self.conv_blocks_context[d](x)
-            # print('feature map in', x.shape)
             skips.append(x)
             if not self.convolutional_pooling:
                 x = self.td[d](x)
 
         x = self.conv_blocks_context[-1](x)
-        # print('feature map', x.shape)
 
         for u in range(len(self.tu)):
             x = self.tu[u](x)
+            if self.do_attention and u not in self.no_attention:
+                x = self.axial_attention[u](self.axial_embedding[u](x)) + x
             x = torch.cat((x, skips[-(u + 1)]), dim=1)
             x = self.conv_blocks_localization[u](x)
             seg_outputs.append(self.final_nonlin(self.seg_outputs[u](x)))
@@ -450,7 +487,7 @@ class Generic_UNet(SegmentationNetwork):
                 map_size[pi] /= pool_op_kernel_sizes[p][pi]
             num_feat = min(num_feat * 2, max_num_features)
             num_blocks = (conv_per_stage * 2 + 1) if p < (
-                    npool - 1) else conv_per_stage  # conv_per_stage + conv_per_stage for the convs of encode/decode and 1 for transposed conv
+                        npool - 1) else conv_per_stage  # conv_per_stage + conv_per_stage for the convs of encode/decode and 1 for transposed conv
             tmp += num_blocks * np.prod(map_size, dtype=np.int64) * num_feat
             if deep_supervision and p < (npool - 2):
                 tmp += np.prod(map_size, dtype=np.int64) * num_classes

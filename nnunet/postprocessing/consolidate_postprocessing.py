@@ -64,8 +64,14 @@ def consolidate_folds(output_folder_base, validation_folder_name: str = 'validat
     num_niftis_gt = len(subfiles(join(output_folder_base, "gt_niftis"), suffix='.nii.gz'))
     # count niftis in there
     num_niftis = len(subfiles(output_folder_raw, suffix='.nii.gz'))
+    print("folds:", folds)
+    print("output_folder_raw:", output_folder_raw)
+    print("num_niftis :", num_niftis)
+    print("output_folder_base:", output_folder_base)
+    print("num_niftis_gt :", num_niftis_gt)
+
     if num_niftis != num_niftis_gt:
-        raise AssertionError("If does not seem like you trained all the folds! Train all folds first!")
+        raise AssertionError("It does not seem like you trained all the folds! Train all folds first!")
 
     # load a summary file so that we can know what class labels to expect
     summary_fold0 = load_json(join(output_folder_base, "fold_0", validation_folder_name, "summary.json"))['results'][

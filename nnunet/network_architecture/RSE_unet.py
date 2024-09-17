@@ -12,16 +12,48 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-
 from copy import deepcopy
-from nnunet.utilities.nd_softmax import softmax_helper
-from torch import nn
-import torch
+
 import numpy as np
+import torch
+import torch.nn.functional
+from monai.networks.blocks import ResidualSELayer
+from torch import nn
+
 from nnunet.network_architecture.initialization import InitWeights_He
 from nnunet.network_architecture.neural_network import SegmentationNetwork
-import torch.nn.functional
+from nnunet.utilities.nd_softmax import softmax_helper
 
+
+class RSE_Block(nn.Module):
+    def __init__(self, num_channels, reduction_ratio=4):
+        super(RSE_Block, self).__init__()
+
+        if num_channels % reduction_ratio != 0:
+            raise ValueError('num_channels must be divisible by reduction_ratio (default = 4)')
+
+        print("RSE_Block num_channels : ", num_channels)
+        print("RSE_Block reduction_ratio : ", reduction_ratio)
+        print("RSE_Block num_channels_reduced : ", num_channels // reduction_ratio)
+        self.reduction_ratio = reduction_ratio
+        self.avg_pool = nn.AdaptiveAvgPool3d(1)
+        self.linear1 = nn.Linear(num_channels, num_channels // reduction_ratio, bias=True)
+        self.relu = nn.ReLU()
+        self.linear2 = nn.Linear(num_channels // reduction_ratio, num_channels, bias=True)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, input_tensor):
+        batch_size, num_channels, D, H, W = input_tensor.size()
+        # Average along each channel
+        squeeze_tensor = self.avg_pool(input_tensor)
+
+        # channel excitation
+        fc1 = self.relu(self.linear1(squeeze_tensor.view(batch_size, num_channels)))
+        fc2 = self.sigmoid(self.linear2(fc1))
+
+        output_tensor = torch.mul(input_tensor, fc2.view(batch_size, num_channels, 1, 1, 1))
+        output_tensor += input_tensor
+        return output_tensor
 
 class ConvDropoutNormNonlin(nn.Module):
     """
@@ -136,7 +168,8 @@ class StackedConvLayers(nn.Module):
               [basic_block(output_feature_channels, output_feature_channels, self.conv_op,
                            self.conv_kwargs,
                            self.norm_op, self.norm_op_kwargs, self.dropout_op, self.dropout_op_kwargs,
-                           self.nonlin, self.nonlin_kwargs) for _ in range(num_convs - 1)]))
+                           self.nonlin, self.nonlin_kwargs) for _ in range(num_convs - 1)]),
+            RSE_Block(output_feature_channels, 2))
 
     def forward(self, x):
         return self.blocks(x)
@@ -164,7 +197,7 @@ class Upsample(nn.Module):
                                          align_corners=self.align_corners)
 
 
-class Generic_UNet(SegmentationNetwork):
+class RSE_unet(SegmentationNetwork):
     DEFAULT_BATCH_SIZE_3D = 2
     DEFAULT_PATCH_SIZE_3D = (64, 192, 160)
     SPACING_FACTOR_BETWEEN_STAGES = 2
@@ -201,7 +234,7 @@ class Generic_UNet(SegmentationNetwork):
 
         Questions? -> f.isensee@dkfz.de
         """
-        super(Generic_UNet, self).__init__()
+        super(RSE_unet, self).__init__()
         self.convolutional_upsampling = convolutional_upsampling
         self.convolutional_pooling = convolutional_pooling
         self.upscale_logits = upscale_logits
@@ -353,7 +386,8 @@ class Generic_UNet(SegmentationNetwork):
                 StackedConvLayers(n_features_after_tu_and_concat, nfeatures_from_skip, num_conv_per_stage - 1,
                                   self.conv_op, self.conv_kwargs, self.norm_op, self.norm_op_kwargs, self.dropout_op,
                                   self.dropout_op_kwargs, self.nonlin, self.nonlin_kwargs, basic_block=basic_block),
-                StackedConvLayers(nfeatures_from_skip, int(final_num_features/encoder_scale), 1, self.conv_op, self.conv_kwargs,
+                StackedConvLayers(nfeatures_from_skip, int(final_num_features / encoder_scale), 1, self.conv_op,
+                                  self.conv_kwargs,
                                   self.norm_op, self.norm_op_kwargs, self.dropout_op, self.dropout_op_kwargs,
                                   self.nonlin, self.nonlin_kwargs, basic_block=basic_block)
             ))
